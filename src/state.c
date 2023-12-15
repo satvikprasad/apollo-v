@@ -24,14 +24,6 @@ f32 Amp(float complex z) {
 }
 
 void Callback(void *buffer_data, u32 n) {
-	if (n > FREQ_COUNT) n = FREQ_COUNT;
-
-	Frame *frame_data = buffer_data;
-
-	for (u32 i = 0; i < FREQ_COUNT; ++i) {
-		freq_in[i] = frame_data[i].left;	
-	}
-
 	u32 capacity = ARRAY_LEN(frames);
 
 	if (capacity - frame_count >= n) {
@@ -44,6 +36,15 @@ void Callback(void *buffer_data, u32 n) {
 		memcpy(frames, buffer_data, sizeof(Frame)*capacity);
 		frame_count = capacity;
 	}
+
+	if (n > FREQ_COUNT) n = FREQ_COUNT;
+
+	Frame *frame_data = buffer_data;
+
+	for (u32 i = 0; i < n; ++i) {
+		freq_in[i] = frame_data[i].left;	
+	}
+
 }
 
 void StateInitialise(State *state, const char *fp) {
@@ -51,7 +52,7 @@ void StateInitialise(State *state, const char *fp) {
 	assert(state->music.stream.sampleSize == 32);
 	assert(state->music.stream.channels == 2);
 
-	SetMusicVolume(state->music, 0.5f);
+	SetMusicVolume(state->music, 0.0f);
 	PlayMusicStream(state->music);
 	AttachAudioStreamProcessor(state->music.stream, Callback);
 }
@@ -90,9 +91,11 @@ void StateUpdate(State *state) {
 	ClearBackground(RAYWHITE);
 
 	f32 cell_width = ((f32)GetRenderWidth())/((f32)FREQ_COUNT);
+	if (cell_width < 1.f) cell_width = 1.f;
 	for (u32 i = 0; i < FREQ_COUNT; ++i) {
 		f32 t = Amp(freq[i])/max_amp;
-		DrawCircleLines(w/2, h/2, (h/2)*t, (Color){t*200, t*125, t*sin(10*GetTime())*200, 255});
+		DrawRectangle(i*cell_width, h-(h/2)*t, cell_width, h, (Color){t*200, t*125, sin(t*GetTime())*50 + 200, 255});
+//		DrawCircleLines(w/2, h/2, (h/2)*t, (Color){t*200, t*125, t*sin(10*GetTime())*200, 255});
 	}
 
 	u32 count = 1024;

@@ -6,7 +6,6 @@
 
 #include <complex.h>
 
-#define FREQ_COUNT 256
 typedef struct State {
 	Music music;
 } State;
