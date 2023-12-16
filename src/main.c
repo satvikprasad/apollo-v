@@ -33,7 +33,7 @@ int main(void) {
 	SetTargetFPS(144);
 	InitAudioDevice();
 
-	StateInitialise(&state, "assets/monks.mp3");
+	StateInitialise(&state, "assets/maajin bae.mp3");
 	while(!WindowShouldClose()) {
 		if (IsKeyPressed(KEY_R)) {
 			StateDetach(&state);
