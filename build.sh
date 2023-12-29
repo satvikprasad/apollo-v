@@ -1,13 +1,12 @@
-include=""
-linker="-L/usr/local/lib -lraylib -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL"
+include="-Ilib/raylib/src"
+linker="-lraylib -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL"
 
 mkdir -p build
 
 gcc src/state.c -o ./build/libstate.so -fPIC -shared $include $linker
 
-sudo cp ./build/libstate.so /usr/local/lib/
-
-gcc src/main.c -Wall -Wextra  -o build/visualizer $include $linker -L./build/
+gcc src/main.c src/state.c -Wall -Wextra  -o build/lynx $include $linker -L./build/
 
 mkdir -p build/assets
 
+cp -r ./assets/* build/assets/

@@ -1,6 +1,6 @@
 ./build.sh
 
 cd build
-./visualizer
+./lynx &
 cd ../
 
