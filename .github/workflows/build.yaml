@@ -1,0 +1,59 @@
+name: build
+on: push
+jobs:
+  build-macos:
+    permissions: write-all
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: | 
+          git submodule update --init --recursive
+          ./libs.sh
+          ./build.sh
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}-macos
+          release_name: lynx-v0-0-${{ github.run_number }}-macos
+      - name: Add Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/lynx
+          asset_name: lynx-v0-0-${{ github.run_number }}
+          asset_content_type: application
+  build-windows:
+    permissions: write-all
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build
+        run: | 
+          git submodule update --init --recursive
+          .\libs.bat
+          .\build.bat
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}-windows
+          release_name: lynx-v0-0-${{ github.run_number }}-windows
+      - name: Add Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: .\build\lynx.exe
+          asset_name: lynx-v0-0-${{ github.run_number }}.exe
+          asset_content_type: application
+
