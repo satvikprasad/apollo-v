@@ -1,9 +1,5 @@
-cd lib\raylib
+cd lib\raylib\src
 
-cmake -D BUILD_SHARED_LIBS=ON .
-
-cd raylib
-
-make install
+make 
 
 cd ..\..\..\
