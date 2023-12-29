@@ -26,7 +26,7 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./build/lynx
-          asset_name: lynx-v0-0-${{ github.run_number }}.exe
+          asset_name: lynx-v0-0-${{ github.run_number }}
           asset_content_type: application
   build-windows:
     permissions: write-all
