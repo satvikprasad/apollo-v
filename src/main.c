@@ -1,5 +1,4 @@
 #include "state.h"
-#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +23,7 @@ State state = {0};
 void *libstate;
 
 #ifdef HOT_RELOADABLE
+#include <dlfcn.h>
 static inline void *load_func(const char *name)  {
   void *func = dlsym(libstate, name);
   if (func == NULL) {
