@@ -1,7 +1,7 @@
 @echo off
 
 SET include=-Ilib\raylib\src
-SET linker=lib\raylib\src\libraylib.a -lgdi32 -lole32 -loleaut32 -limm32 -lwinmm
+SET linker=-lraylib -lgdi32 -lole32 -loleaut32 -limm32 -lwinmm
 
 mkdir build
 
