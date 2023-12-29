@@ -19,7 +19,6 @@
   STATE_METHODS
 #undef X
 
-State state = {0};
 void *libstate;
 
 #ifdef HOT_RELOADABLE
