@@ -19,4 +19,4 @@ typedef float f32;
 typedef double f64;
 
 #define ARRAY_LEN(a) sizeof((a))/sizeof((a)[0])
-#define FREQ_COUNT (1<<14)
+#define FREQ_COUNT (1 << 15)
