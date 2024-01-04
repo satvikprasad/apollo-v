@@ -3,9 +3,9 @@ linker="-lraylib -framework CoreVideo -framework IOKit -framework Cocoa -framewo
 
 mkdir -p build
 
-gcc src/state.c -o ./build/libstate.so -fPIC -shared $include $linker
+gcc src/state.c src/ffmpeg_unix.c -o ./build/libstate.so -fPIC -shared $include $linker
 
-gcc src/main.c src/state.c -Wall -Wextra  -o build/lynx $include $linker -L./build/
+gcc src/main.c -Wall -Wextra  -o build/lynx $include $linker -L./build/ -DHOT_RELOADABLE
 
 mkdir -p build/assets
 

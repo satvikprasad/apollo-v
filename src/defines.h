@@ -20,3 +20,4 @@ typedef double f64;
 
 #define ARRAY_LEN(a) sizeof((a))/sizeof((a)[0])
 #define FREQ_COUNT (1 << 15)
+#define RENDER_FPS 60
