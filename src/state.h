@@ -22,6 +22,10 @@ STATE_METHODS
 
 typedef struct State {
 	Music music;
+  char *music_fp;
+
+  b8 recording;
+
   Font font;
 
   HMM_Vec2 screen_size;
@@ -31,5 +35,24 @@ typedef struct State {
   f32 wave_width;
 
   f32 samples[FREQ_COUNT];
+  f32 smooth_freq[1000];
+  f32 *window_buffer;
   float complex freq[FREQ_COUNT];
+
+  f32 dt;
+
+  Shader circle_lines_shader;
+  Shader lr_gradient_shader;
+
+  Texture2D default_tex;
+  RenderTexture2D screen;
+
+  i32 ffmpeg;
+  f32 record_start;
+
+  struct {
+    Wave wave;
+    f32 *wave_samples;
+    u32 wave_cursor;
+  } record_data;
 } State;
