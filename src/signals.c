@@ -11,12 +11,17 @@
 #include <string.h>
 
 // To convert from regular sample count to logarithmic frequency count, pass in NULL for *out_frequencies
-// e.g signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count_ptr, 0)
+// e.g signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count_ptr, 0, SMOOTHING)
 void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 sample_count, 
   f32 *out_frequencies, u32 *out_frequency_count, f32 dt, u32 smoothing) {
   *out_frequency_count = logf((0.5f*(f32)sample_count)/start_frequency)/logf(scale); 
 
-  if (out_frequencies == NULL) return;
+  if (out_frequencies == NULL) {
+    for (u32 i = 0; i < smoothing; ++i) {
+    signals_smooth_convolve(NULL, *out_frequency_count, NULL, 3, NULL, out_frequency_count);
+    }
+    return;
+  }
 
   f32 max_amp = 0.0f;
    
@@ -49,7 +54,7 @@ void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 s
   }
 
   for (u32 i = 0; i < smoothing; ++i) {
-    signals_smooth_convolve(log_freq, *out_frequency_count, (f32[3]){1, 1, 1}, 3, log_freq);
+    signals_smooth_convolve(log_freq, *out_frequency_count, (f32[3]){1, 1, 1}, 3, log_freq, out_frequency_count);
   }
 
   f32 smooth_frequencies[*out_frequency_count];
@@ -99,25 +104,33 @@ void signals_fft(f32 in[], u32 stride, float complex out[], u32 n) {
   }
 }
 
-void signals_smooth_convolve(f32 *elements, u32 element_count, f32 *filter, u32 filter_count, f32 *out) {
+void signals_smooth_convolve(f32 *elements, u32 element_count, f32 *filter, u32 filter_count, f32 *out, u32 *out_count) {
+  *out_count = filter_count + element_count - 1;
+
+  if (elements == NULL || filter == NULL || out == NULL) return;
+
   f32 y[element_count];
 
-  for (u32 i = 0; i < element_count; ++i) {
+  for (u32 i = 0; i < *out_count; ++i) {
     f32 dot = 0.f;
     f32 sum = 0.f;
     for (u32 j = 0; j < filter_count; ++j) {
-      if (j + i >= element_count) {
+      if (j+i - filter_count + 1 >= element_count) {
         continue;
       }
 
-      dot += filter[j]*elements[j+i];
+      if (j+i - filter_count + 1 < 0) {
+        continue;
+      }
+
+      dot += filter[j]*elements[j+i - filter_count + 1];
       sum += filter[j];
     }
 
     y[i] = dot/sum;
   }
 
-  memcpy(out, y, sizeof(f32)*element_count);
+  memcpy(out, y, sizeof(f32)*(*out_count));
 }
 
 void signals_smooth_convolve_v2y(HMM_Vec2 *elements, u32 element_count, f32 *filter, u32 filter_count, HMM_Vec2 *out) {
