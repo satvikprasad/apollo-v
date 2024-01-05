@@ -13,6 +13,7 @@ typedef struct State State;
   X(initialise, void, const char *fp) \
   X(destroy, void) \
   X(update, void) \
+  X(render, void) \
   X(attach, void, void *) \
   X(detach, void *)
 
@@ -52,4 +53,6 @@ typedef struct State {
     f32 *wave_samples;
     u32 wave_cursor;
   } record_data;
+
+  u32 smoothing;
 } State;
