@@ -71,6 +71,7 @@ int main(void) {
     }
 
     state_update();
+    state_render();
   }
 
   state_destroy();
