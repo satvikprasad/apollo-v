@@ -1,7 +1,6 @@
 #include "ffmpeg.h"
 #include "handmademath.h"
 
-#include "raylib.h"
 #include <assert.h>
 #include <errno.h>
 #include <sys/wait.h>

@@ -7,7 +7,7 @@ mkdir build
 
 REM gcc src\state.c -o .\build\libstate.so -fPIC -shared %include% %linker%
 
-gcc src\main.c src\state.c -Wall -Wextra -o build\lynx.exe %include% %linker% -L.\build\
+gcc src\main.c src\state.c src\ffmpeg_windows.c src\signals.c src\renderer.c -Wall -Wextra -o build\lynx.exe %include% %linker% -L.\build\
 
 mkdir -p build\assets
 

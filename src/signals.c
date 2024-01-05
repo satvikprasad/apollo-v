@@ -1,4 +1,5 @@
 #include "defines.h"
+#include "handmademath.h"
 #include "raylib.h"
 #include "signals.h"
 
@@ -6,11 +7,13 @@
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 // To convert from regular sample count to logarithmic frequency count, pass in NULL for *out_frequencies
 // e.g signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count_ptr, 0)
-void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 sample_count, f32 *out_frequencies, u32 *out_frequency_count, f32 dt) {
+void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 sample_count, 
+  f32 *out_frequencies, u32 *out_frequency_count, f32 dt, u32 smoothing) {
   *out_frequency_count = logf((0.5f*(f32)sample_count)/start_frequency)/logf(scale); 
 
   if (out_frequencies == NULL) return;
@@ -43,6 +46,10 @@ void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 s
     }
 
     log_freq[i] = a/max_amp;
+  }
+
+  for (u32 i = 0; i < smoothing; ++i) {
+    signals_smooth_convolve(log_freq, *out_frequency_count, (f32[3]){1, 1, 1}, 3, log_freq);
   }
 
   f32 smooth_frequencies[*out_frequency_count];
@@ -90,4 +97,47 @@ void signals_fft(f32 in[], u32 stride, float complex out[], u32 n) {
     out[k] = e + v;
     out[k + n/2] = e - v;
   }
+}
+
+void signals_smooth_convolve(f32 *elements, u32 element_count, f32 *filter, u32 filter_count, f32 *out) {
+  f32 y[element_count];
+
+  for (u32 i = 0; i < element_count; ++i) {
+    f32 dot = 0.f;
+    f32 sum = 0.f;
+    for (u32 j = 0; j < filter_count; ++j) {
+      if (j + i >= element_count) {
+        continue;
+      }
+
+      dot += filter[j]*elements[j+i];
+      sum += filter[j];
+    }
+
+    y[i] = dot/sum;
+  }
+
+  memcpy(out, y, sizeof(f32)*element_count);
+}
+
+void signals_smooth_convolve_v2y(HMM_Vec2 *elements, u32 element_count, f32 *filter, u32 filter_count, HMM_Vec2 *out) {
+  HMM_Vec2 y[element_count];
+
+  for (u32 i = 0; i < element_count; ++i) {
+    f32 dot = 0.f;
+    f32 sum = 0.f;
+    for (u32 j = 0; j < filter_count; ++j) {
+      if (j + i >= element_count) {
+        continue;
+      }
+
+      dot += filter[j]*elements[j+i].Y;
+      sum += filter[j];
+    }
+
+    y[i].Y = dot/sum;
+    y[i].X = elements[i].X;
+  }
+
+  memcpy(out, y, sizeof(HMM_Vec2)*element_count);
 }

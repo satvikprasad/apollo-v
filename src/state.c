@@ -18,7 +18,6 @@ State *state;
 
 static inline void serialize();
 static inline void deserialize();
-static inline void update();
 static inline void render();
 
 static inline void draw_textured_poly(Texture2D texture, HMM_Vec2 center, HMM_Vec2 *points, HMM_Vec2 *texcoords, int pointCount, Color tint);
@@ -42,7 +41,7 @@ void state_initialise(const char *fp) {
   state->wave_width = 10;
   state->screen = LoadRenderTexture(1280, 720);
 
-  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &state->frequency_count, 0);
+  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &state->frequency_count, 0, 0);
   state->frequencies = calloc(state->frequency_count, sizeof(f32));
 
   renderer_initialise(&state->renderer);
@@ -70,6 +69,8 @@ void *state_detach() {
     DetachAudioStreamProcessor(state->music.stream, frame_callback);
   }
 
+  renderer_detach(&state->renderer);
+
   return state;
 }
 
@@ -84,94 +85,6 @@ void state_attach(void *stateptr) {
 }
 
 void state_update() {
-  update();
-
-  BeginDrawing();
-  ClearBackground((Color){45, 45, 45, 255});
-
-  if (!state->recording) {
-    if (IsMusicReady(state->music)) {
-      renderer_set_render_size(&state->renderer, state->screen_size);
-
-      render();
-    } else {
-      u32 font_size = state->font.baseSize;
-
-      HMM_Vec2 dim = ray_to_hmmv2(MeasureTextEx(state->font, "Drag & drop music here", font_size, 1));
-      DrawTextEx(state->font, "Drag & drop music here", (Vector2){(state->screen_size.Width - dim.Width)/2, (state->screen_size.Height - dim.Height)/2}, font_size, 1, WHITE);
-    }
-  } else {
-      HMM_Vec2 render_size = HMM_V2(state->screen.texture.width, state->screen.texture.height);
-
-      u32 font_size = state->font.baseSize;
-
-      char *text = "Now recording video...";
-
-      HMM_Vec2 dim = ray_to_hmmv2(MeasureTextEx(state->font, text, font_size, 1));
-      DrawTextEx(state->font, text, (Vector2){(state->screen_size.Width - dim.Width)/2, (state->screen_size.Height - dim.Height)/2}, font_size, 1, WHITE);
-
-      u32 chunk_size = state->record_data.wave.sampleRate/RENDER_FPS;
-      f32 (*frames)[state->record_data.wave.channels] = (void *)state->record_data.wave_samples;
-      for (u32 i = 0; i < chunk_size; ++i ) {
-        if (state->record_data.wave_cursor < state->record_data.wave.frameCount) {
-          push_frame(frames[state->record_data.wave_cursor][0]);
-        } else {
-          push_frame(0);
-        }
-        state->record_data.wave_cursor++;
-      }
-
-      BeginTextureMode(state->screen); 
-      {
-        renderer_set_render_size(&state->renderer, render_size);
-
-        ClearBackground((Color){45, 45, 45, 255});
-
-        render();
-      }
-      EndTextureMode();
-
-      Image image = LoadImageFromTexture(state->screen.texture);
-      {
-        ffmpeg_write(state->ffmpeg, image.data, HMM_V2(image.width, image.height));
-      }
-      UnloadImage(image);
-  }
-
-  EndDrawing();	
-}
-
-static inline void serialize() {
-  FILE *fptr;
-  fptr = fopen("data.ly", "wb");
-  {
-    fwrite(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
-    fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
-    fwrite(&state->master_volume, sizeof(f32), 1, fptr);
-    fputs(state->music_fp, fptr);
-  }
-  fclose(fptr);
-}
-
-static inline void deserialize() {
-  if (access("data.ly", F_OK) == 0) {
-    FILE *fptr;
-    fptr = fopen("data.ly", "rb");
-    {
-      fread(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
-      fread(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
-      fread(&state->master_volume, sizeof(f32), 1, fptr);
-      state->music_fp = fgets(state->music_fp, 128, fptr);
-    }
-    fclose(fptr);
-
-    SetWindowSize(state->screen_size.Width, state->screen_size.Height);
-    SetWindowPosition(state->window_position.X, state->window_position.Y);
-    SetMasterVolume(state->master_volume);
-  }
-}
-
-static inline void update() {
   if (IsMusicReady(state->music)) {
     UpdateMusicStream(state->music);
   }
@@ -188,6 +101,21 @@ static inline void update() {
   }
 
   if (!state->recording) {
+    if (IsKeyPressed(KEY_MINUS)) {
+      if (state->smoothing != 0) {
+        state->smoothing -= 1;
+      }
+    }
+
+    if (IsKeyPressed(KEY_EQUAL) && IsKeyDown(KEY_LEFT_SHIFT)) {
+      state->smoothing += 1;
+      
+      if (state->smoothing < 0) {
+        state->smoothing = 0;
+      }
+    }
+
+
     if(IsKeyPressed(KEY_SPACE) && IsMusicReady(state->music)) {
       if (IsMusicStreamPlaying(state->music)) {
         PauseMusicStream(state->music);
@@ -256,14 +184,112 @@ static inline void update() {
   state->master_volume = GetMasterVolume();
 
   u32 freq_count;
-  signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &freq_count, 1/(f32)RENDER_FPS);
+  if (state->recording) {
+    signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &freq_count, 1/(f32)RENDER_FPS, state->smoothing);
+  } else {
+    signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &freq_count, state->dt, state->smoothing);
+  }
   assert(state->frequency_count == freq_count);
+}
+
+void state_render() {
+  Color clear = (Color){15, 15, 15, 255};
+
+  BeginDrawing();
+  ClearBackground(clear);
+
+  if (!state->recording) {
+    if (IsMusicReady(state->music)) {
+      renderer_set_render_size(&state->renderer, state->screen_size);
+
+      render();
+    } else {
+      u32 font_size = state->font.baseSize;
+
+      HMM_Vec2 dim = ray_to_hmmv2(MeasureTextEx(state->font, "Drag & drop music here", font_size, 1));
+      DrawTextEx(state->font, "Drag & drop music here", (Vector2){(state->screen_size.Width - dim.Width)/2, (state->screen_size.Height - dim.Height)/2}, font_size, 1, WHITE);
+    }
+  } else {
+      HMM_Vec2 render_size = HMM_V2(state->screen.texture.width, state->screen.texture.height);
+
+      u32 font_size = state->font.baseSize;
+
+      char *text = "Now recording video...";
+
+      HMM_Vec2 dim = ray_to_hmmv2(MeasureTextEx(state->font, text, font_size, 1));
+      DrawTextEx(state->font, text, (Vector2){(state->screen_size.Width - dim.Width)/2, (state->screen_size.Height - dim.Height)/2}, font_size, 1, WHITE);
+
+      u32 chunk_size = state->record_data.wave.sampleRate/RENDER_FPS;
+      f32 (*frames)[state->record_data.wave.channels] = (void *)state->record_data.wave_samples;
+      for (u32 i = 0; i < chunk_size; ++i ) {
+        if (state->record_data.wave_cursor < state->record_data.wave.frameCount) {
+          push_frame(frames[state->record_data.wave_cursor][0]);
+        } else {
+          push_frame(0);
+        }
+        state->record_data.wave_cursor++;
+      }
+
+      BeginTextureMode(state->screen); 
+      {
+        renderer_set_render_size(&state->renderer, render_size);
+
+        ClearBackground(clear);
+
+        render();
+      }
+      EndTextureMode();
+
+      Image image = LoadImageFromTexture(state->screen.texture);
+      {
+        ffmpeg_write(state->ffmpeg, image.data, HMM_V2(image.width, image.height));
+      }
+      UnloadImage(image);
+  }
+
+  EndDrawing();	
+}
+
+static inline void serialize() {
+  FILE *fptr;
+  fptr = fopen("data.ly", "wb");
+  {
+    fwrite(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
+    fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
+    fwrite(&state->master_volume, sizeof(f32), 1, fptr);
+    fwrite(&state->smoothing, sizeof(u32), 1, fptr);
+    fputs(state->music_fp, fptr);
+  }
+  fclose(fptr);
+}
+
+static inline void deserialize() {
+  if (access("data.ly", F_OK) == 0) {
+    FILE *fptr;
+    fptr = fopen("data.ly", "rb");
+    {
+      fread(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
+      fread(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
+      fread(&state->master_volume, sizeof(f32), 1, fptr);
+      fread(&state->smoothing, sizeof(u32), 1, fptr);
+      state->music_fp = fgets(state->music_fp, 128, fptr);
+    }
+    fclose(fptr);
+
+    SetWindowSize(state->screen_size.Width, state->screen_size.Height);
+    SetWindowPosition(state->window_position.X, state->window_position.Y);
+    SetMasterVolume(state->master_volume);
+  }
+}
+
+static inline Color red(f32 t) {
+  return (Color){t*255, t*255, 0, 255};
 }
 
 static inline void render() {
   renderer_draw_circle_frequencies(&state->renderer, state->frequency_count, state->frequencies);
   renderer_draw_waveform(&state->renderer, SAMPLE_COUNT, state->samples, state->wave_width); 
-  renderer_draw_frequencies(&state->renderer, state->frequency_count, state->frequencies);
+  renderer_draw_frequencies(&state->renderer, state->frequency_count, state->frequencies, true, red);
 }
 
 static inline void push_frame(f32 val) {

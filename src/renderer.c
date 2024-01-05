@@ -1,14 +1,69 @@
 #include "renderer.h"
 #include "defines.h"
 #include "handmademath.h"
+#include "signals.h"
 
+#include <assert.h>
 #include <raylib.h>
 #include <rlgl.h>
+
+static inline Color default_color_func(f32 t);
+
+static inline void draw_frequency_polygon(Texture2D tex, HMM_Vec2 *indices, u32 index_count, 
+  HMM_Vec2 *vertices, u32 vertex_count,
+  Color *colors, u32 color_count, f32 bottom) {
+  assert(index_count == vertex_count && vertex_count == color_count && "Index count must be equal to vertex count.");
+
+  rlSetTexture(tex.id);
+
+  rlBegin(RL_QUADS);
+  {
+    for (i32 i = 0; i < index_count - 1; i++)
+    {
+      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
+      rlTexCoord2f(indices[i].X, 1.f);
+      rlVertex2f(vertices[i].X, bottom);
+
+      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
+      rlTexCoord2f(indices[i + 1].X, 1.f);
+      rlVertex2f(vertices[i + 1].X, bottom);
+
+      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
+      rlTexCoord2f(indices[i].X, indices[i].Y);
+      rlVertex2f(vertices[i].X, vertices[i].Y);
+
+      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
+      rlTexCoord2f(indices[i + 1].X, indices[i + 1].Y);
+      rlVertex2f(vertices[i + 1].X, vertices[i + 1].Y);
+
+      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
+      rlTexCoord2f(indices[i + 1].X, 1.f);
+      rlVertex2f(vertices[i + 1].X, bottom);
+
+      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
+      rlTexCoord2f(indices[i + 1].X, indices[i + 1].Y);
+      rlVertex2f(vertices[i + 1].X, vertices[i + 1].Y);
+
+      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
+      rlTexCoord2f(indices[i].X, indices[i].Y);
+      rlVertex2f(vertices[i].X, vertices[i].Y);
+
+      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
+      rlTexCoord2f(indices[i + 1].X, indices[i + 1].Y);
+      rlVertex2f(vertices[i + 1].X, vertices[i + 1].Y);
+    }
+  }
+  rlEnd();
+
+  rlSetTexture(0);
+}
 
 void renderer_initialise(Renderer *renderer) {
   renderer->shaders[Shaders_CIRCLE_LINES] = LoadShader(0, "assets/shaders/circle_lines.fs");
   renderer->shaders[Shaders_LR_GRADIENT] = LoadShader(0, "assets/shaders/lr_gradient.fs");
   renderer->textures[Textures_DEFAULT] = (Texture2D){rlGetTextureIdDefault(), 1, 1, PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
+
+  renderer->default_color_func = default_color_func;
 }
 
 void renderer_destroy(Renderer *renderer) {
@@ -24,6 +79,11 @@ void renderer_destroy(Renderer *renderer) {
 void renderer_attach(Renderer *renderer) {
   renderer->shaders[Shaders_CIRCLE_LINES] = LoadShader(0, "assets/shaders/circle_lines.fs");
   renderer->shaders[Shaders_LR_GRADIENT] = LoadShader(0, "assets/shaders/lr_gradient.fs");
+}
+
+void renderer_detach(Renderer *renderer) {
+  UnloadShader(renderer->shaders[Shaders_CIRCLE_LINES]);
+  UnloadShader(renderer->shaders[Shaders_LR_GRADIENT]);
 }
 
 void renderer_set_render_size(Renderer *renderer, HMM_Vec2 render_size) {
@@ -50,93 +110,58 @@ void renderer_draw_waveform(Renderer *renderer, u32 sample_count, f32 *samples, 
 }
 
 
-void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies) {
+void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count, 
+    f32 *frequencies, b8 outline, color_func_t *color_func) {
   f32 cell_width = ceilf((f32)renderer->render_size.Width/((f32)frequency_count));
 
-  u32 position_count = frequency_count;
-  HMM_Vec2 positions[position_count];
-
-  Color colors[position_count];
-
-  u32 vertex_count = position_count;
+  u32 vertex_count = frequency_count;
   HMM_Vec2 vertices[vertex_count];
 
-  for (u32 i = 0; i < position_count; ++i) {
+  Color colors[vertex_count];
+
+  u32 index_count = vertex_count;
+  HMM_Vec2 indices[index_count];
+
+  for (u32 i = 0; i < vertex_count; ++i) {
     f32 t = frequencies[i];
 
     if (t < 0) t = 0;
 
-    Color color = (Color){
-      t*200, 
-        t*125, 
-        sin(t*GetTime())*50 + 200, 
-        255
-    };
+    Color color = color_func(t);
 
     colors[i] = color;
-    positions[i] = HMM_V2(i * cell_width, renderer->render_size.Height*(1-0.5*t));
+    vertices[i] = HMM_V2(i * cell_width, renderer->render_size.Height*(1-0.5*t));
   }
 
-  for (u32 i = 0; i < position_count; ++i) {
-    HMM_Vec2 position = positions[i];
+  for (u32 i = 0; i < vertex_count; ++i) {
+    HMM_Vec2 vertex = vertices[i];
 
-
-    vertices[i] = HMM_SubV2(position, HMM_V2(renderer->render_size.Width/2.f, renderer->render_size.Height*(3.f/4.f)));
-    vertices[i] = HMM_DivV2(vertices[i], HMM_V2(renderer->render_size.Width, renderer->render_size.Height/2.f));
-    vertices[i] = HMM_AddV2(vertices[i], HMM_V2(0.5f, 0.5f));
+    indices[i] = HMM_SubV2(vertex, HMM_V2(renderer->render_size.Width/2.f, renderer->render_size.Height*(3.f/4.f)));
+    indices[i] = HMM_DivV2(indices[i], HMM_V2(renderer->render_size.Width, renderer->render_size.Height/2.f));
+    indices[i] = HMM_AddV2(indices[i], HMM_V2(0.5f, 0.5f));
   }
-  
-  rlSetTexture(renderer->textures[Textures_DEFAULT].id);
 
-  rlBegin(RL_QUADS);
-  {
-    rlColor4ub(1, 1, 255, 255);
-    for (int i = 0; i < vertex_count - 1; i++)
+  draw_frequency_polygon(renderer->textures[Textures_DEFAULT], indices, index_count, vertices, vertex_count,
+    colors, vertex_count, renderer->render_size.Height);
+
+  if (outline) {
+    rlBegin(RL_LINES);
     {
-      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
-      rlTexCoord2f(vertices[i].X, 1.f);
-      rlVertex2f(positions[i].X, renderer->render_size.Height);
-
-      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
-      rlTexCoord2f(vertices[i + 1].X, 1.f);
-      rlVertex2f(positions[i + 1].X, renderer->render_size.Height);
-
-      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
-      rlTexCoord2f(vertices[i].X, vertices[i].Y);
-      rlVertex2f(positions[i].X, positions[i].Y);
-
-      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
-      rlTexCoord2f(vertices[i + 1].X, vertices[i + 1].Y);
-      rlVertex2f(positions[i + 1].X, positions[i + 1].Y);
-
-      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
-      rlTexCoord2f(vertices[i + 1].X, 1.f);
-      rlVertex2f(positions[i + 1].X, renderer->render_size.Height);
-
-      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
-      rlTexCoord2f(vertices[i + 1].X, vertices[i + 1].Y);
-      rlVertex2f(positions[i + 1].X, positions[i + 1].Y);
-
-      rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
-      rlTexCoord2f(vertices[i].X, vertices[i].Y);
-      rlVertex2f(positions[i].X, positions[i].Y);
-
-      rlColor4ub(colors[i + 1].r, colors[i + 1].g, colors[i + 1].b, colors[i + 1].a);
-      rlTexCoord2f(vertices[i + 1].X, vertices[i + 1].Y);
-      rlVertex2f(positions[i + 1].X, positions[i + 1].Y);
+      rlColor4ub(255, 255, 255, 255);
+      for (u32 i = 0; i < index_count - 1; ++i) {
+        rlTexCoord2f(indices[i].X, indices[i].Y);
+        rlVertex2f(vertices[i].X, vertices[i].Y);
+        rlTexCoord2f(indices[i+1].X, indices[i+1].Y);
+        rlVertex2f(vertices[i+1].X, vertices[i+1].Y);
+      }
     }
+    rlEnd();
   }
-  rlEnd();
-
-  rlSetTexture(0);
 }
 
 void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies) {
   f32 width = 2;
-  i32 width_loc = GetShaderLocation(renderer->shaders[Shaders_CIRCLE_LINES], "width");
-  SetShaderValue(renderer->shaders[Shaders_CIRCLE_LINES], width_loc, &width, SHADER_UNIFORM_FLOAT);
-
-  i32 size_loc = GetShaderLocation(renderer->shaders[Shaders_CIRCLE_LINES], "size");
+  assert(IsShaderReady(renderer->shaders[Shaders_CIRCLE_LINES]));
 
   {
     for (u32 i = 0; i < frequency_count; i+=10) {
@@ -146,16 +171,14 @@ void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f
 
       f32 rad = (renderer->render_size.Height/2)*t*t;
 
-      Rectangle rec = (Rectangle){renderer->render_size.Width/2 - rad, renderer->render_size.Height/2 - rad,
+      Rectangle rec = (Rectangle){renderer->render_size.Width/2, renderer->render_size.Height/2,
         2*rad, 2*rad};
 
-      f32 size = 2*rad;
-
-      SetShaderValue(renderer->shaders[Shaders_CIRCLE_LINES], size_loc, &size, SHADER_UNIFORM_FLOAT);
-
-      BeginShaderMode(renderer->shaders[Shaders_CIRCLE_LINES]); 
-      DrawTextureEx(renderer->textures[Textures_DEFAULT], (Vector2){rec.x, rec.y}, 0, 2*rad, color);
-      EndShaderMode();
+      DrawCircleLines(rec.x, rec.y, 2*rad, color);
     }
   }
+}
+
+static inline Color default_color_func(f32 t) {
+  return (Color){t*200, t*125, sin(t*GetTime())*50 + 200, 255};
 }
