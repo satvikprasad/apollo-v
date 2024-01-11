@@ -7,6 +7,7 @@
 #include "signals.h"
 
 #include <assert.h>
+#include <math.h>
 #include <raylib.h>
 #include <rlgl.h>
 #include <stdlib.h>
@@ -14,19 +15,23 @@
 #include <stdio.h>
 #include <string.h>
 
-static inline void serialize();
-static inline void deserialize();
-static inline void render();
+#define RAYGUI_IMPLEMENTATION
+#include "raygui.h"
 
-static inline void begin_recording();
-static inline void end_recording();
-static inline void update_recording();
+static void serialize();
+static void deserialize();
+static void render_ui();
+static void render();
 
-static inline void update_frequencies();
-static inline void load_dropped_files();
+static void begin_recording();
+static void end_recording();
+static void update_recording();
 
-static inline void push_frame(f32 val, f32 *samples, u32 sample_count);
-static inline void frame_callback(void *buffer_data, u32 n);
+static void update_frequencies();
+static b8 load_dropped_files();
+
+static void push_frame(f32 val, f32 *samples, u32 sample_count);
+static void frame_callback(void *buffer_data, u32 n);
 
 State *state;
 
@@ -43,7 +48,17 @@ void state_initialise(const char *fp) {
   state->wave_width = 10;
   state->screen = LoadRenderTexture(1280, 720);
 
-  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &state->frequency_count, 0, 0);
+  GuiSetFont(state->font);
+
+  state->filter = calloc(5, sizeof(f32));
+
+  for (i32 i = -2; i < 3; ++i) {
+    state->filter[i + 2] = expf(-i*i);
+  }
+
+  state->filter_count = 5;
+
+  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &state->frequency_count, 0, 0, state->filter, state->filter_count);
   state->frequencies = calloc(state->frequency_count, sizeof(f32));
 
   renderer_initialise(&state->renderer);
@@ -63,6 +78,7 @@ void state_destroy() {
   UnloadRenderTexture(state->screen);
 
   free(state->music_fp);
+  free(state->frequencies);
   free(state);
 }
 
@@ -87,59 +103,82 @@ void state_attach(void *stateptr) {
 }
 
 void state_update() {
-  if (IsMusicReady(state->music)) {
-    UpdateMusicStream(state->music);
-  }
-
-  if (state->record_data.wave_cursor >= state->record_data.wave.frameCount 
-    && state->recording) {
-    end_recording();
-  }
-
-  if (!state->recording) {
-    if (IsKeyPressed(KEY_MINUS)) {
-      if (state->smoothing != 0) {
-        state->smoothing -= 1;
+  switch (state->condition) {
+    case StateCondition_NORMAL:
+      if (!IsMusicReady(state->music)) {
+        state->condition = StateCondition_LOAD;
+        break;
       }
-    }
 
-    if (IsKeyPressed(KEY_EQUAL) && IsKeyDown(KEY_LEFT_SHIFT)) {
-      state->smoothing += 1;
+      UpdateMusicStream(state->music);
+
+      // Smoothing controls
+      if (IsKeyPressed(KEY_MINUS)) {
+        if (state->smoothing != 0) {
+          state->smoothing -= 1;
+        }
+      }
+
+      if (IsKeyPressed(KEY_EQUAL) && IsKeyDown(KEY_LEFT_SHIFT)) {
+        state->smoothing += 1;
+
+        if (state->smoothing < 0) {
+          state->smoothing = 0;
+        }
+      }
+
+      if(IsKeyPressed(KEY_SPACE)) {
+        if (IsMusicStreamPlaying(state->music)) {
+          PauseMusicStream(state->music);
+        } else {
+          ResumeMusicStream(state->music);
+        }
+      }
+
+      if (IsWindowResized()) {
+        state->screen_size = HMM_V2(GetRenderWidth(), GetRenderHeight());
+      }
+
+      if (IsKeyPressed(KEY_M) && IsMusicReady(state->music)) {
+        if (GetMasterVolume() != 0.f) {
+          SetMasterVolume(0.f);
+        } else {
+          SetMasterVolume(1.f);
+        }
+      }
       
-      if (state->smoothing < 0) {
-        state->smoothing = 0;
+      if (IsFileDropped()) {
+        if(!load_dropped_files()) {
+          state->condition = StateCondition_LOAD;
+        }
       }
-    }
 
-
-    if(IsKeyPressed(KEY_SPACE) && IsMusicReady(state->music)) {
-      if (IsMusicStreamPlaying(state->music)) {
-        PauseMusicStream(state->music);
-      } else {
-        ResumeMusicStream(state->music);
+      if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
+        begin_recording();
+        state->condition = StateCondition_RECORDING;
       }
-    }
 
-    if (IsWindowResized()) {
-      state->screen_size = HMM_V2(GetRenderWidth(), GetRenderHeight());
-    }
+      signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &state->frequency_count, state->dt, state->smoothing, state->filter, state->filter_count);
 
+      break;
 
-    if (IsKeyPressed(KEY_M) && IsMusicReady(state->music)) {
-      if (GetMasterVolume() != 0.f) {
-        SetMasterVolume(0.f);
-      } else {
-        SetMasterVolume(1.f);
+    case StateCondition_ERROR:
+      break;
+
+    case StateCondition_LOAD:
+      if (IsFileDropped()) {
+        if(load_dropped_files()) { state->condition = StateCondition_NORMAL; }
       }
-    }
+      break;
 
-    if (IsFileDropped()) {
-      load_dropped_files();
-    }
+    case StateCondition_RECORDING:
+      if (state->record_data.wave_cursor >= state->record_data.wave.frameCount) {
+        end_recording();
+        state->condition = StateCondition_NORMAL;
+      }
 
-    if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
-      begin_recording();
-    }
+      update_recording();
+      break;
   }
 
   state->dt = GetFrameTime();
@@ -148,12 +187,6 @@ void state_update() {
   state->master_volume = GetMasterVolume();
 
   update_frequencies();
-
-  if (state->recording) {
-    update_recording();
-  } else {
-    signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &state->frequency_count, state->dt, state->smoothing);
-  }
 }
 
 void state_render() {
@@ -162,18 +195,26 @@ void state_render() {
   BeginDrawing();
   ClearBackground(clear);
 
-  if (!state->recording) {
-    if (IsMusicReady(state->music)) {
+  switch (state->condition) {
+    case StateCondition_NORMAL: 
+      if (!IsMusicReady(state->music)) {
+        state->condition = StateCondition_LOAD;
+        break;
+      }
       renderer_set_render_size(&state->renderer, state->screen_size);
 
       render();
-    } else {
+      render_ui();
+      break;
+      
+    case StateCondition_LOAD:
       renderer_draw_text_center(state->font, "Drag & drop music to play", HMM_V2(
         state->screen_size.Width / 2, 
         state->screen_size.Height / 2)
       );
-    }
-  } else {
+      break;
+
+    case StateCondition_RECORDING:
       assert(IsRenderTextureReady(state->screen));
 
       HMM_Vec2 render_size = HMM_V2(state->screen.texture.width, state->screen.texture.height);
@@ -198,12 +239,17 @@ void state_render() {
         ffmpeg_write(state->ffmpeg, image.data, render_size);
       }
       UnloadImage(image);
+      break;
+  
+    default:
+      printf("Unhandled case\n");
+      break;
   }
 
   EndDrawing();	
 }
 
-static inline void serialize() {
+static void serialize() {
   FILE *fptr;
   fptr = fopen("data.ly", "wb");
   {
@@ -216,7 +262,7 @@ static inline void serialize() {
   fclose(fptr);
 }
 
-static inline void deserialize() {
+static void deserialize() {
   if (access("data.ly", F_OK) == 0) {
     FILE *fptr;
     fptr = fopen("data.ly", "rb");
@@ -235,13 +281,24 @@ static inline void deserialize() {
   }
 }
 
-static inline void render() {
-  renderer_draw_circle_frequencies(&state->renderer, state->frequency_count, state->frequencies);
+static void render_ui() {
+  GuiSlider((Rectangle){100, 10, 200, 20}, "Wave width", "", &state->wave_width, 1, 100);
+
+  f32 smoothing = state->smoothing;
+  // To truncate (u32)smoothing;
+  {
+    GuiSlider((Rectangle){100, 40, 200, 20}, "Smoothing", "", &smoothing, 0, 10);
+  }
+  state->smoothing = smoothing;
+}
+
+static void render() {
+  renderer_draw_circle_frequencies(&state->renderer, state->frequency_count, state->frequencies, state->renderer.default_color_func);
   renderer_draw_waveform(&state->renderer, SAMPLE_COUNT, state->samples, state->wave_width); 
   renderer_draw_frequencies(&state->renderer, state->frequency_count, state->frequencies, true, state->renderer.default_color_func);
 }
 
-static inline void begin_recording() {
+static void begin_recording() {
   memset(state->samples, 0, sizeof(f32)*SAMPLE_COUNT);
   memset(state->frequencies, 0, sizeof(f32)*state->frequency_count);
 
@@ -255,22 +312,18 @@ static inline void begin_recording() {
   state->record_data.wave_cursor = 0;
 
   PauseMusicStream(state->music);
-
-  state->recording = true;
 }
 
-static inline void end_recording() {
+static void end_recording() {
   ffmpeg_end(state->ffmpeg);
 
   UnloadWave(state->record_data.wave);
   UnloadWaveSamples(state->record_data.wave_samples);
 
   ResumeMusicStream(state->music);
-
-  state->recording = false;
 }
 
-static inline void update_recording() {
+static void update_recording() {
   u32 chunk_size = state->record_data.wave.sampleRate/RENDER_FPS;
   f32 (*frames)[state->record_data.wave.channels] = (void *)state->record_data.wave_samples;
   for (u32 i = 0; i < chunk_size; ++i ) {
@@ -282,12 +335,12 @@ static inline void update_recording() {
     state->record_data.wave_cursor++;
   }
 
-  signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &state->frequency_count, 1/(f32)RENDER_FPS, state->smoothing);
+  signals_process_samples(LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies, &state->frequency_count, 1/(f32)RENDER_FPS, state->smoothing, state->filter, state->filter_count);
 }
 
-static inline void update_frequencies() {
+static void update_frequencies() {
   u32 freq_count;
-  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0, state->smoothing);
+  signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0, state->smoothing, state->filter, state->filter_count);
 
   if (freq_count != state->frequency_count) {
     state->frequencies = realloc(state->frequencies, freq_count * sizeof(f32));
@@ -295,12 +348,12 @@ static inline void update_frequencies() {
     if (freq_count > state->frequency_count) {
       memset(state->frequencies + state->frequency_count, 0, (freq_count - state->frequency_count)*sizeof(f32));
     }
-
-    state->frequency_count = freq_count;
   }
 }
 
-static inline void load_dropped_files() {
+static b8 load_dropped_files() {
+  b8 ret = false;
+
   FilePathList dropped_files = LoadDroppedFiles();
 
   if (dropped_files.count > 0) {
@@ -316,18 +369,21 @@ static inline void load_dropped_files() {
     if (IsMusicReady(state->music)) {
       PlayMusicStream(state->music);
       AttachAudioStreamProcessor(state->music.stream, frame_callback);
+      ret = true;
     }
   }
 
   UnloadDroppedFiles(dropped_files);
+
+  return ret;
 }
 
-static inline void push_frame(f32 val, f32 *samples, u32 sample_count) {
+static void push_frame(f32 val, f32 *samples, u32 sample_count) {
   memmove(samples, samples + 1, (sample_count - 1)*sizeof(f32));
   samples[sample_count - 1] = val;	
 }
 
-static inline void frame_callback(void *buffer_data, u32 n) {
+static void frame_callback(void *buffer_data, u32 n) {
   f32 (*frame_data)[state->music.stream.channels] = buffer_data;
 
   for (u32 i = 0; i < n; ++i) {
