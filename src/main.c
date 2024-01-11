@@ -1,9 +1,6 @@
 #include "state.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <complex.h>
 
+#include <stdio.h>
 #include <raylib.h>
 
 #include "defines.h"
@@ -64,11 +61,13 @@ i32 main(void) {
 
   state_initialise("assets/monks.mp3");
   while(!WindowShouldClose()) {
+#ifdef HOT_RELOADABLE
     if (IsKeyPressed(KEY_R)) {
       void *state = state_detach();
       if(!load_symbols()) return 1;
       state_attach(state);
     }
+#endif
 
     state_update();
     state_render();

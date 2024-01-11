@@ -21,13 +21,18 @@ typedef struct State State;
 STATE_METHODS
 #undef X
 
+typedef enum StateCondition {
+  StateCondition_NORMAL = 0,
+  StateCondition_ERROR,
+  StateCondition_LOAD,
+  StateCondition_RECORDING,
+} StateCondition;
+
 typedef struct State {
   Renderer renderer;
 
 	Music music;
   char *music_fp;
-
-  b8 recording;
 
   Font font;
 
@@ -55,4 +60,9 @@ typedef struct State {
   } record_data;
 
   u32 smoothing;
+
+  f32 *filter;
+  u32 filter_count;
+
+  StateCondition condition;
 } State;

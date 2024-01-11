@@ -20,7 +20,7 @@ static inline void draw_frequency_polygon(Texture2D tex, HMM_Vec2 *indices, u32 
 
   rlBegin(RL_QUADS);
   {
-    for (i32 i = 0; i < index_count - 1; i++)
+    for (u32 i = 0; i < index_count - 1; i++)
     {
       rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
       rlTexCoord2f(indices[i].X, 1.f);
@@ -70,11 +70,15 @@ void renderer_initialise(Renderer *renderer) {
 
 void renderer_destroy(Renderer *renderer) {
   for (u32 i = 0; i < SHADERS_MAX; ++i) {
-    UnloadShader(renderer->shaders[i]);
+    if(IsShaderReady(renderer->shaders[i])) {
+      // UnloadShader(renderer->shaders[i]);
+    }
   }
 
   for (u32 i = 0; i < TEXTURES_MAX; ++i) {
-    UnloadTexture(renderer->textures[i]);
+    if (IsTextureReady(renderer->textures[i])) {
+      UnloadTexture(renderer->textures[i]);
+    }
   }
 }
 
@@ -163,23 +167,18 @@ void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count,
   }
 }
 
-void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies) {
-  f32 width = 2;
-  assert(IsShaderReady(renderer->shaders[Shaders_CIRCLE_LINES]));
+void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies, color_func_t color_func) {
+  for (u32 i = 0; i < frequency_count; i+=10) {
+    f32 t = frequencies[i];
 
-  {
-    for (u32 i = 0; i < frequency_count; i+=10) {
-      f32 t = frequencies[i];
+    Color color = color_func(t);
 
-      Color color = (Color){255-t*200, 255-t*125, 255-t*sin(t*10)*200, 255};
+    f32 rad = (renderer->render_size.Height/2)*t*t;
 
-      f32 rad = (renderer->render_size.Height/2)*t*t;
+    Rectangle rec = (Rectangle){renderer->render_size.Width/2, renderer->render_size.Height/2,
+      2*rad, 2*rad};
 
-      Rectangle rec = (Rectangle){renderer->render_size.Width/2, renderer->render_size.Height/2,
-        2*rad, 2*rad};
-
-      DrawCircleLines(rec.x, rec.y, 2*rad, color);
-    }
+    DrawCircleLines(rec.x, rec.y, 2*rad, color);
   }
 }
 

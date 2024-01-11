@@ -13,12 +13,12 @@
 // To convert from regular sample count to logarithmic frequency count, pass in NULL for *out_frequencies
 // e.g signals_process_samples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count_ptr, 0, SMOOTHING)
 void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 sample_count, 
-  f32 *out_frequencies, u32 *out_frequency_count, f32 dt, u32 smoothing) {
+  f32 *out_frequencies, u32 *out_frequency_count, f32 dt, u32 smoothing, f32 *filter, u32 filter_count) {
   *out_frequency_count = logf((0.5f*(f32)sample_count)/start_frequency)/logf(scale); 
 
   if (out_frequencies == NULL) {
     for (u32 i = 0; i < smoothing; ++i) {
-    signals_smooth_convolve(NULL, *out_frequency_count, NULL, 3, NULL, out_frequency_count);
+    signals_smooth_convolve(NULL, *out_frequency_count, NULL, filter_count, NULL, out_frequency_count);
     }
     return;
   }
@@ -54,7 +54,7 @@ void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples, u32 s
   }
 
   for (u32 i = 0; i < smoothing; ++i) {
-    signals_smooth_convolve(log_freq, *out_frequency_count, (f32[3]){1, 1, 1}, 3, log_freq, out_frequency_count);
+    signals_smooth_convolve(log_freq, *out_frequency_count, filter, filter_count, log_freq, out_frequency_count);
   }
 
   f32 smooth_frequencies[*out_frequency_count];
