@@ -1,10 +1,6 @@
 #include "state.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <complex.h>
-#include <unistd.h>
 
+#include <stdio.h>
 #include <raylib.h>
 
 #include "defines.h"
@@ -23,6 +19,7 @@ void *libstate;
 
 #ifdef HOT_RELOADABLE
 #include <dlfcn.h>
+
 static inline void *load_func(const char *name)  {
   void *func = dlsym(libstate, name);
   if (func == NULL) {
@@ -53,7 +50,7 @@ static inline b8 load_symbols() {
 #define load_symbols() true
 #endif
 
-int main(void) {
+i32 main(void) {
   if(!load_symbols()) return 1;
 
   SetConfigFlags(FLAG_MSAA_4X_HINT);
@@ -64,11 +61,13 @@ int main(void) {
 
   state_initialise("assets/monks.mp3");
   while(!WindowShouldClose()) {
+#ifdef HOT_RELOADABLE
     if (IsKeyPressed(KEY_R)) {
       void *state = state_detach();
       if(!load_symbols()) return 1;
       state_attach(state);
     }
+#endif
 
     state_update();
     state_render();

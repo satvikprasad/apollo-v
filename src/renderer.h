@@ -34,4 +34,5 @@ void renderer_set_render_size(Renderer *renderer, HMM_Vec2 render_size);
 void renderer_draw_waveform(Renderer *renderer, u32 sample_count, f32 *samples, f32 wave_width_multiplier);
 void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count, 
     f32 *frequencies, b8 outline, color_func_t *color_func);
-void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies);
+void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies, color_func_t color_func);
+void renderer_draw_text_center(Font font, const char *text, HMM_Vec2 center);

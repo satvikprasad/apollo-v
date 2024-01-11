@@ -1,11 +1,13 @@
 #include "renderer.h"
 #include "defines.h"
 #include "handmademath.h"
+#include "lmath.h"
 #include "signals.h"
 
 #include <assert.h>
 #include <raylib.h>
 #include <rlgl.h>
+#include <stdio.h>
 
 static inline Color default_color_func(f32 t);
 
@@ -18,7 +20,7 @@ static inline void draw_frequency_polygon(Texture2D tex, HMM_Vec2 *indices, u32 
 
   rlBegin(RL_QUADS);
   {
-    for (i32 i = 0; i < index_count - 1; i++)
+    for (u32 i = 0; i < index_count - 1; i++)
     {
       rlColor4ub(colors[i].r, colors[i].g, colors[i].b, colors[i].a);
       rlTexCoord2f(indices[i].X, 1.f);
@@ -68,15 +70,21 @@ void renderer_initialise(Renderer *renderer) {
 
 void renderer_destroy(Renderer *renderer) {
   for (u32 i = 0; i < SHADERS_MAX; ++i) {
-    UnloadShader(renderer->shaders[i]);
+    if(IsShaderReady(renderer->shaders[i])) {
+      // UnloadShader(renderer->shaders[i]);
+    }
   }
 
   for (u32 i = 0; i < TEXTURES_MAX; ++i) {
-    UnloadTexture(renderer->textures[i]);
+    if (IsTextureReady(renderer->textures[i])) {
+      UnloadTexture(renderer->textures[i]);
+    }
   }
 }
 
 void renderer_attach(Renderer *renderer) {
+  renderer->default_color_func = default_color_func;
+
   renderer->shaders[Shaders_CIRCLE_LINES] = LoadShader(0, "assets/shaders/circle_lines.fs");
   renderer->shaders[Shaders_LR_GRADIENT] = LoadShader(0, "assets/shaders/lr_gradient.fs");
 }
@@ -112,7 +120,7 @@ void renderer_draw_waveform(Renderer *renderer, u32 sample_count, f32 *samples, 
 
 void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count, 
     f32 *frequencies, b8 outline, color_func_t *color_func) {
-  f32 cell_width = ceilf((f32)renderer->render_size.Width/((f32)frequency_count));
+  f32 cell_width = (f32)renderer->render_size.Width/((f32)frequency_count);
 
   u32 vertex_count = frequency_count;
   HMM_Vec2 vertices[vertex_count];
@@ -159,24 +167,29 @@ void renderer_draw_frequencies(Renderer *renderer, u32 frequency_count,
   }
 }
 
-void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies) {
-  f32 width = 2;
-  assert(IsShaderReady(renderer->shaders[Shaders_CIRCLE_LINES]));
+void renderer_draw_circle_frequencies(Renderer *renderer, u32 frequency_count, f32 *frequencies, color_func_t color_func) {
+  for (u32 i = 0; i < frequency_count; i+=10) {
+    f32 t = frequencies[i];
 
-  {
-    for (u32 i = 0; i < frequency_count; i+=10) {
-      f32 t = frequencies[i];
+    Color color = color_func(t);
 
-      Color color = (Color){255-t*200, 255-t*125, 255-t*sin(t*10)*200, 255};
+    f32 rad = (renderer->render_size.Height/2)*t*t;
 
-      f32 rad = (renderer->render_size.Height/2)*t*t;
+    Rectangle rec = (Rectangle){renderer->render_size.Width/2, renderer->render_size.Height/2,
+      2*rad, 2*rad};
 
-      Rectangle rec = (Rectangle){renderer->render_size.Width/2, renderer->render_size.Height/2,
-        2*rad, 2*rad};
-
-      DrawCircleLines(rec.x, rec.y, 2*rad, color);
-    }
+    DrawCircleLines(rec.x, rec.y, 2*rad, color);
   }
+}
+
+void renderer_draw_text_center(Font font, const char *text, HMM_Vec2 center) {
+  u32 font_size = font.baseSize;
+
+  HMM_Vec2 size = ray_to_hmm_v2(MeasureTextEx(font, text, font_size, 1));
+
+  HMM_Vec2 corner = HMM_SubV2(center, HMM_MulV2F(size, 0.5f));
+
+  DrawTextEx(font, text, hmm_to_ray_v2(corner), font_size, 1, WHITE);
 }
 
 static inline Color default_color_func(f32 t) {
