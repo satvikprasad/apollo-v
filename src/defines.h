@@ -18,7 +18,7 @@ typedef uint8_t b8;
 typedef float f32;
 typedef double f64;
 
-#define ARRAY_LEN(a) sizeof((a))/sizeof((a)[0])
+#define ARRAY_LEN(a) sizeof((a)) / sizeof((a)[0])
 #define SAMPLE_COUNT (1 << 15)
 #define RENDER_FPS 60
 #define LOG_MUL 1.06f
