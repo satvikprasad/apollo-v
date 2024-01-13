@@ -1,9 +1,8 @@
-#include "state.h"
-
-#include <stdio.h>
 #include <raylib.h>
+#include <stdio.h>
 
 #include "defines.h"
+#include "state.h"
 
 #define SUPPORT_FILEFORMAT_FLAC
 
@@ -12,7 +11,7 @@
 #else
 #define X(name, ret, ...) name##_t state_##name;
 #endif
-  STATE_METHODS
+STATE_METHODS
 #undef X
 
 void *libstate;
@@ -20,7 +19,7 @@ void *libstate;
 #ifdef HOT_RELOADABLE
 #include <dlfcn.h>
 
-static inline void *load_func(const char *name)  {
+static inline void *load_func(const char *name) {
   void *func = dlsym(libstate, name);
   if (func == NULL) {
     fprintf(stderr, "ERROR: Could not find symbol %s: %s\n", name, dlerror());
@@ -51,7 +50,7 @@ static inline b8 load_symbols() {
 #endif
 
 i32 main(void) {
-  if(!load_symbols()) return 1;
+  if (!load_symbols()) return 1;
 
   SetConfigFlags(FLAG_MSAA_4X_HINT);
   SetConfigFlags(FLAG_WINDOW_RESIZABLE);
@@ -59,12 +58,12 @@ i32 main(void) {
   SetTargetFPS(144);
   InitAudioDevice();
 
-  state_initialise("assets/monks.mp3");
-  while(!WindowShouldClose()) {
+  state_initialise();
+  while (!WindowShouldClose()) {
 #ifdef HOT_RELOADABLE
     if (IsKeyPressed(KEY_R)) {
       void *state = state_detach();
-      if(!load_symbols()) return 1;
+      if (!load_symbols()) return 1;
       state_attach(state);
     }
 #endif
@@ -77,4 +76,3 @@ i32 main(void) {
 
   return 0;
 }
-
