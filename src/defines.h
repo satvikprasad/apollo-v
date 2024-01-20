@@ -2,21 +2,21 @@
 
 #include <stdint.h>
 
-typedef int64_t i64;
-typedef int32_t i32;
-typedef int16_t i16;
-typedef int8_t i8;
+typedef int64_t I64;
+typedef int32_t I32;
+typedef int16_t I16;
+typedef int8_t I8;
 
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t u8;
+typedef uint64_t U64;
+typedef uint32_t U32;
+typedef uint16_t U16;
+typedef uint8_t U8;
 
-typedef uint32_t b32;
-typedef uint8_t b8;
+typedef uint32_t B32;
+typedef uint8_t B8;
 
-typedef float f32;
-typedef double f64;
+typedef float F32;
+typedef double F64;
 
 #define ARRAY_LEN(a) sizeof((a)) / sizeof((a)[0])
 #define SAMPLE_COUNT (1 << 15)
