@@ -5,14 +5,14 @@
 #include "defines.h"
 #include "handmademath.h"
 
-void signals_process_samples(f32 scale, f32 start_frequency, f32 *samples,
-                             u32 sample_count, f32 *out_frequencies,
-                             u32 *out_frequency_count, f32 dt, u32 smoothing,
-                             f32 *filter, u32 filter_count);
-void signals_window_samples(f32 *in, f32 *out, u32 length);
-void signals_smooth_convolve(f32 *elements, u32 element_count, f32 *filter,
-                             u32 filter_count, f32 *out, u32 *out_count);
-void signals_smooth_convolve_v2y(HMM_Vec2 *elements, u32 element_count,
-                                 f32 *filter, u32 filter_count, HMM_Vec2 *out);
-f32 signals_camp(float complex z);
-void signals_fft(f32 in[], u32 stride, float complex out[], u32 n);
+void SignalsProcessSamples(F32 scale, F32 start_frequency, F32 *samples,
+                           U32 sample_count, F32 *out_frequencies,
+                           U32 *out_frequency_count, F32 dt, U32 smoothing,
+                           F32 *filter, U32 filter_count, U32 velocity);
+void SignalsWindowSamples(F32 *in, F32 *out, U32 length);
+void SignalsSmoothConvolve(F32 *elements, U32 element_count, F32 *filter,
+                           U32 filter_count, F32 *out, U32 *out_count);
+void SignalsSmoothConvolveV2Y(HMM_Vec2 *elements, U32 element_count,
+                              F32 *filter, U32 filter_count, HMM_Vec2 *out);
+F32 SignalsCAmp(float complex z);
+void SignalsFFT(F32 in[], U32 stride, float complex out[], U32 n);

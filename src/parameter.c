@@ -4,29 +4,49 @@
 
 #include "hashmap.h"
 
-static int parameter_compare(const void *a, const void *b, void *udata) {
-  (void)(udata);
+static int ParameterCompare(const void *a, const void *b, void *udata) {
+    (void)(udata);
 
-  Parameter *pa = (Parameter *)a;
-  Parameter *pb = (Parameter *)b;
-  return strcmp(pa->name, pb->name);
+    Parameter *pa = (Parameter *)a;
+    Parameter *pb = (Parameter *)b;
+    return strcmp(pa->name, pb->name);
 }
 
-static u64 parameter_hash(const void *item, u64 seed0, u64 seed1) {
-  Parameter *pitem = (Parameter *)item;
+static U64 ParameterHash(const void *item, U64 seed0, U64 seed1) {
+    Parameter *pitem = (Parameter *)item;
 
-  return hashmap_sip(pitem->name, strlen(pitem->name), seed0, seed1);
+    return hashmap_sip(pitem->name, strlen(pitem->name), seed0, seed1);
 }
 
-HM_Hashmap *parameters_create() {
-  return hashmap_new(sizeof(Parameter), 0, 0, 0, parameter_hash,
-                     parameter_compare, NULL, NULL);
+HM_Hashmap *ParameterCreate() {
+    return hashmap_new(sizeof(Parameter), 0, 0, 0, ParameterHash,
+                       ParameterCompare, NULL, NULL);
 }
 
-f32 parameter_get(HM_Hashmap *params, char *name) {
-  return ((Parameter *)hashmap_get(params, &(Parameter){.name = name}))->value;
+void ParameterDestroy(Parameters *params) { hashmap_free(params); };
+
+B8 ParameterIter(Parameters *params, U32 *iter, Parameter **parameter) {
+    return hashmap_iter(params, iter, (void **)parameter);
 }
 
-void parameter_set(HM_Hashmap *params, char *name, f32 value) {
-  hashmap_set(params, &(Parameter){.name = name, .value = value});
+Parameter *ParameterGet(Parameters *params, const char *name) {
+    return (Parameter *)hashmap_get(params, &(Parameter){.name = name});
+}
+
+F32 ParameterGetValue(Parameters *params, const char *name) {
+    return ((Parameter *)hashmap_get(params, &(Parameter){.name = name}))
+        ->value;
+}
+
+void ParameterSet(Parameters *params, Parameter *param) {
+    hashmap_set(params, param);
+}
+
+void ParameterSetValue(Parameters *params, const char *name, F32 value) {
+    Parameter *prev = ParameterGet(params, name);
+
+    ParameterSet(params, &(Parameter){.name = name,
+                                      .value = value,
+                                      .min = prev->min,
+                                      .max = prev->max});
 }

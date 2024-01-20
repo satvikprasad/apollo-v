@@ -4,8 +4,8 @@
 #include "ffmpeg.h"
 #include "handmademath.h"
 
-i32 ffmpeg_start(HMM_Vec2 size, u32 fps, const char *music) { return -1; }
+i32 FFMPEGStart(HMM_Vec2 size, u32 fps, const char *music) { return -1; }
 
-void ffmpeg_end(i32 pipe) {}
+void FFMPEGEnd(i32 pipe) {}
 
-void ffmpeg_write(i32 pipe, void *data, HMM_Vec2 size) {}
+void FFMPEGWrite(i32 pipe, void *data, HMM_Vec2 size) {}

@@ -4,9 +4,9 @@
 #include "handmademath.h"
 #include "raylib.h"
 
-f32 min(f32 a, f32 b);
-f32 max(f32 a, f32 b);
-f32 clamp(f32 v, f32 min, f32 max);
+F32 MinF32(F32 a, F32 b);
+F32 MaxF32(F32 a, F32 b);
+F32 ClampF32(F32 v, F32 min, F32 max);
 
-HMM_Vec2 ray_to_hmm_v2(Vector2 v);
-Vector2 hmm_to_ray_v2(HMM_Vec2 v);
+HMM_Vec2 RayToHMMV2(Vector2 v);
+Vector2 HMMToRayV2(HMM_Vec2 v);
