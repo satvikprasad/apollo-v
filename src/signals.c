@@ -116,7 +116,7 @@ void SignalsSmoothConvolve(F32 *elements, U32 element_count, F32 *filter,
     if (elements == NULL || filter == NULL || out == NULL)
         return;
 
-    F32 y[element_count];
+    F32 y[*out_count];
 
     for (U32 i = 0; i < *out_count; ++i) {
         F32 dot = 0.f;

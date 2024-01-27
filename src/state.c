@@ -330,7 +330,6 @@ static void ReadString(char *str, FILE *fptr) {
     U32 len;
     fread(&len, sizeof(U32), 1, fptr);
     fread(str, sizeof(char), len, fptr);
-    str[len] = '\0';
 }
 
 static void Serialize() {
@@ -444,8 +443,6 @@ static void RenderUI() {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
-
-        DrawText(TextFormat("FPS: %u", GetFPS()), 500, 500, 20, WHITE);
     } else {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
             state->ui = true;
