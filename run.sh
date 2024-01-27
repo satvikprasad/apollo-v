@@ -1,6 +1,6 @@
 ./build.sh
 
 cd build
-./lynx
+./lynx &
 cd ../
 

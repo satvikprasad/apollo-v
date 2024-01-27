@@ -2,6 +2,7 @@
 // Serialize and deserialize parameters in a neat file format.
 
 #include <raylib.h>
+#include <stdio.h>
 
 #include "defines.h"
 #include "state.h"
