@@ -2,69 +2,94 @@
 
 #include <complex.h>
 
+#include "api.h"
+#include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
-#include "hashmap.h"
+#include "loopback.h"
+#include "parameter.h"
 #include "raylib.h"
 #include "renderer.h"
 
 typedef struct State State;
 
-#define STATE_METHODS     \
-  X(initialise, void)     \
-  X(destroy, void)        \
-  X(update, void)         \
-  X(render, void)         \
-  X(attach, void, void *) \
-  X(detach, void *)
-
-#define X(name, ret, ...) typedef ret(name##_t)(__VA_ARGS__);
-STATE_METHODS
-#undef X
-
 typedef enum StateCondition {
-  StateCondition_NORMAL = 0,
-  StateCondition_ERROR,
-  StateCondition_LOAD,
-  StateCondition_RECORDING,
+    StateCondition_NORMAL = 0,
+    StateCondition_ERROR,
+    StateCondition_LOAD,
+    StateCondition_RECORDING,
 } StateCondition;
 
 #define MAX_PARAM_COUNT 100
 
+#define FREQUENCY_COUNT 2048
+
+typedef struct StateMemory {
+    void *permanent_storage;
+    U32 permanent_storage_size;
+} StateMemory;
+
+#define FONT_SIZES_PER_FONT 25
+#define MAX_FONT_SIZE 50
+
+#define FontClosestToSize(font, size)                                          \
+    (font).fonts[ClampI32((size) * FONT_SIZES_PER_FONT / MAX_FONT_SIZE - 1, 0, \
+                          FONT_SIZES_PER_FONT - 1)]
+#define SmallFont(font) FontClosestToSize((font), 10)
+#define MediumFont(font) FontClosestToSize((font), 20)
+#define LargeFont(font) FontClosestToSize((font), 30)
+#define XLargeFont(font) FontClosestToSize((font), 40)
+
+typedef struct StateFont {
+    Font fonts[FONT_SIZES_PER_FONT];
+} StateFont;
+
 typedef struct State {
-  Renderer renderer;
+    MemoryArena arena;
 
-  Music music;
-  char *music_fp;
+    Renderer *renderer;
+    Api *api;
+    LoopbackData *loopback_data;
 
-  Font font;
+    Music music;
+    char music_fp[256];
 
-  HMM_Vec2 screen_size;
-  HMM_Vec2 window_position;
+    StateFont font;
 
-  f32 master_volume;
+    HMM_Vec2 screen_size;
+    HMM_Vec2 window_position;
 
-  f32 samples[SAMPLE_COUNT];
-  f32 *frequencies;
-  u32 frequency_count;
+    F32 master_volume;
 
-  f32 dt;
+    F32 samples[SAMPLE_COUNT];
+    F32 frequencies[FREQUENCY_COUNT];
+    U32 frequency_count;
 
-  RenderTexture2D screen;
+    F32 dt;
 
-  i32 ffmpeg;
-  f32 record_start;
+    F32 record_start;
 
-  struct {
-    Wave wave;
-    f32 *wave_samples;
-    u32 wave_cursor;
-  } record_data;
+    I32 ffmpeg;
 
-  f32 *filter;
-  u32 filter_count;
+    struct {
+        Wave wave;
+        F32 *wave_samples;
+        U32 wave_cursor;
+    } record_data;
 
-  StateCondition condition;
+    F32 filter[1 << 3];
+    U32 filter_count;
 
-  HM_Hashmap *parameters;
+    StateCondition condition;
+
+    Parameters *parameters;
+
+    B8 ui;
+    B8 loopback;
 } State;
+
+void StateInitialise();
+void StateUpdate();
+void StateRender();
+void StateDestroy();
+void StatePushFrame(F32 val, F32 *samples, U32 sample_count);
