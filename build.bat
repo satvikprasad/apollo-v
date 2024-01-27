@@ -11,6 +11,7 @@ REM gcc src\state.c -o .\build\libstate.so -fPIC -shared %include% %linker%
 gcc %src% -Wall -Wextra -o build\lynx.exe %include% %linker% -L.\build\
 
 mkdir -p build\assets
+mkdir -p build\lua
 
 xcopy .\assets .\build\assets /E
-
+xcopy .\lua .\build\lua /E
