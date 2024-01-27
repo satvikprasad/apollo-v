@@ -19,3 +19,4 @@ F32 ParameterGetValue(Parameters *params, const char *name);
 
 void ParameterSet(Parameters *params, Parameter *param);
 void ParameterSetValue(Parameters *params, const char *name, F32 value);
+U32 ParameterCount(Parameters *params);

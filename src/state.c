@@ -13,6 +13,7 @@
 #include "defines.h"
 #include "ffmpeg.h"
 #include "handmademath.h"
+#include "hashmap.h"
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
@@ -34,7 +35,6 @@ static void UpdateRecording();
 static void SetFrequencyCount();
 static B8 GetDroppedFiles();
 
-static void PushFrame(F32 val, F32 *samples, U32 sample_count);
 static void FrameCallback(void *buffer_data, U32 n);
 
 static StateMemory memory;
@@ -71,6 +71,7 @@ void StateInitialise() {
 
     state->api = ArenaPushStruct(&state->arena, Api);
     state->renderer = ArenaPushStruct(&state->arena, Renderer);
+    state->loopback_data = ArenaPushStruct(&state->arena, LoopbackData);
 
     // Initialise parameters
     {
@@ -131,11 +132,15 @@ void StateInitialise() {
     }
 
     ApiCreate("lua/init.lua", state, state->api);
+
+    LoopbackInitialise(state->loopback_data, state);
 }
 
 void StateDestroy() {
     Serialize();
     ApiDestroy(state->api);
+
+    LoopbackDestroy(state->loopback_data);
 
     RendererDestroy(state->renderer);
 
@@ -154,12 +159,26 @@ void StateUpdate() {
 
     switch (state->condition) {
     case StateCondition_NORMAL:
+        ApiPreUpdate(state->api, state);
+
         if (!IsMusicReady(state->music)) {
             state->condition = StateCondition_LOAD;
             break;
         }
 
         UpdateMusicStream(state->music);
+
+        if (IsKeyPressed(KEY_L)) {
+            if (state->loopback) {
+                AttachAudioStreamProcessor(state->music.stream, FrameCallback);
+                ResumeMusicStream(state->music);
+                state->loopback = false;
+            } else {
+                DetachAudioStreamProcessor(state->music.stream, FrameCallback);
+                PauseMusicStream(state->music);
+                state->loopback = true;
+            }
+        }
 
         // Smoothing controls
         if (IsKeyPressed(KEY_MINUS)) {
@@ -301,6 +320,19 @@ void StateRender() {
     EndDrawing();
 }
 
+static void WriteString(const char *str, FILE *fptr) {
+    U32 len = strlen(str);
+    fwrite(&len, sizeof(U32), 1, fptr);
+    fwrite(str, sizeof(char), len, fptr);
+}
+
+static void ReadString(char *str, FILE *fptr) {
+    U32 len;
+    fread(&len, sizeof(U32), 1, fptr);
+    fread(str, sizeof(char), len, fptr);
+    str[len] = '\0';
+}
+
 static void Serialize() {
     FILE *fptr;
     fptr = fopen("data.ly", "wb");
@@ -312,7 +344,22 @@ static void Serialize() {
         U32 smoothing = (U32)ParameterGetValue(state->parameters, "smoothing");
         fwrite(&smoothing, sizeof(U32), 1, fptr);
 
-        fputs(state->music_fp, fptr);
+        WriteString(state->music_fp, fptr);
+
+        U32 param_count = ParameterCount(state->parameters);
+        fwrite(&param_count, sizeof(U32), 1, fptr);
+
+        printf("param_count: %u\n", param_count);
+
+        U32 iter;
+        Parameter *parameter;
+        while (ParameterIter(state->parameters, &iter, &parameter)) {
+            WriteString(parameter->name, fptr);
+
+            fwrite(&parameter->value, sizeof(F32), 1, fptr);
+            fwrite(&parameter->min, sizeof(F32), 1, fptr);
+            fwrite(&parameter->max, sizeof(F32), 1, fptr);
+        }
     }
     fclose(fptr);
 }
@@ -330,7 +377,29 @@ static bool Deserialize() {
             fread(&smoothing, sizeof(U32), 1, fptr);
             ParameterSetValue(state->parameters, "smoothing", smoothing);
 
-            fgets(state->music_fp, 256, fptr);
+            ReadString(state->music_fp, fptr);
+
+            U32 param_count;
+            fread(&param_count, sizeof(U32), 1, fptr);
+
+            printf("param_count: %u\n", param_count);
+
+            for (U32 i = 0; i < param_count; ++i) {
+                char buf[256];
+                ReadString(buf, fptr);
+
+                char *name = ArenaPushString(&state->arena, buf);
+
+                F32 value, min, max;
+                fread(&value, sizeof(F32), 1, fptr);
+                fread(&min, sizeof(F32), 1, fptr);
+                fread(&max, sizeof(F32), 1, fptr);
+
+                ParameterSet(state->parameters, &(Parameter){.name = name,
+                                                             .value = value,
+                                                             .min = min,
+                                                             .max = max});
+            }
         }
         fclose(fptr);
 
@@ -375,6 +444,8 @@ static void RenderUI() {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
+
+        DrawText(TextFormat("FPS: %u", GetFPS()), 500, 500, 20, WHITE);
     } else {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
             state->ui = true;
@@ -383,11 +454,13 @@ static void RenderUI() {
 }
 
 static void Render() {
+    ApiPreRender(state->api, state);
+
     RendererDrawCircleFrequencies(state->renderer, state->frequency_count,
                                   state->frequencies,
                                   state->renderer->default_color_func);
-    RendererDrawWaveform(state->renderer, SAMPLE_COUNT, state->samples,
-                         ParameterGetValue(state->parameters, "wave_width"));
+    // RendererDrawWaveform(state->renderer, SAMPLE_COUNT, state->samples,
+    //                      ParameterGetValue(state->parameters, "wave_width"));
     RendererDrawFrequencies(state->renderer, state->frequency_count,
                             state->frequencies, true,
                             state->renderer->default_color_func);
@@ -429,10 +502,10 @@ static void UpdateRecording() {
     for (U32 i = 0; i < chunk_size; ++i) {
         if (state->record_data.wave_cursor <
             state->record_data.wave.frameCount) {
-            PushFrame(frames[state->record_data.wave_cursor][0], state->samples,
-                      SAMPLE_COUNT);
+            StatePushFrame(frames[state->record_data.wave_cursor][0],
+                           state->samples, SAMPLE_COUNT);
         } else {
-            PushFrame(0, state->samples, SAMPLE_COUNT);
+            StatePushFrame(0, state->samples, SAMPLE_COUNT);
         }
         state->record_data.wave_cursor++;
     }
@@ -488,7 +561,7 @@ static B8 GetDroppedFiles() {
     return ret;
 }
 
-static void PushFrame(F32 val, F32 *samples, U32 sample_count) {
+void StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
     memmove(samples, samples + 1, (sample_count - 1) * sizeof(F32));
     samples[sample_count - 1] = val;
 }
@@ -497,6 +570,6 @@ static void FrameCallback(void *buffer_data, U32 n) {
     F32(*frame_data)[state->music.stream.channels] = buffer_data;
 
     for (U32 i = 0; i < n; ++i) {
-        PushFrame(frame_data[i][0], state->samples, SAMPLE_COUNT);
+        StatePushFrame(frame_data[i][0], state->samples, SAMPLE_COUNT);
     }
 }

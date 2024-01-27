@@ -2,7 +2,7 @@
 
 SET include=-Ilib\raylib\src
 SET linker=lib\raylib\src\libraylib.a -lgdi32 -lole32 -loleaut32 -limm32 -lwinmm
-SET src=src\lmath.c src\main.c src\state.c src\ffmpeg_windows.c src\signals.c src\renderer.c src\parameter.c src\hashmap.c
+SET src=src\lmath.c src\main.c src\state.c src\ffmpeg_windows.c src\signals.c src\renderer.c src\parameter.c src\hashmap.c src\loopback.c src\api.c src\arena.c src\permanent_storage.c
 
 mkdir build
 

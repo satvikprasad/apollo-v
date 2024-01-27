@@ -15,7 +15,7 @@ I32 main(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1280, 1080, "Lynx");
 
-    SetTargetFPS(60);
+    SetTargetFPS(144);
     InitAudioDevice();
 
     StateInitialise();

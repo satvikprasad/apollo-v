@@ -8,8 +8,8 @@ in vec4 fragColor;
 out vec4 finalColor;
 
 void main() {
-  float t = fragTexCoord.x*fragTexCoord.x;
-  vec4 c = mix(prevColor, fragColor, t);
+    float t = fragTexCoord.x*fragTexCoord.x;
+    vec4 c = mix(prevColor, fragColor, t);
 
-  finalColor = c;
+    finalColor = c;
 }
