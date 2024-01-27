@@ -6,6 +6,7 @@
 #include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
+#include "loopback.h"
 #include "parameter.h"
 #include "raylib.h"
 #include "renderer.h"
@@ -28,11 +29,12 @@ typedef struct StateMemory {
     U32 permanent_storage_size;
 } StateMemory;
 
-#define FONT_SIZES_PER_FONT 4
-#define MAX_FONT_SIZE 40
+#define FONT_SIZES_PER_FONT 25
+#define MAX_FONT_SIZE 50
 
 #define FontClosestToSize(font, size)                                          \
-    (font).fonts[(size) * FONT_SIZES_PER_FONT / MAX_FONT_SIZE - 1]
+    (font).fonts[ClampI32((size) * FONT_SIZES_PER_FONT / MAX_FONT_SIZE - 1, 0, \
+                          FONT_SIZES_PER_FONT - 1)]
 #define SmallFont(font) FontClosestToSize((font), 10)
 #define MediumFont(font) FontClosestToSize((font), 20)
 #define LargeFont(font) FontClosestToSize((font), 30)
@@ -47,6 +49,7 @@ typedef struct State {
 
     Renderer *renderer;
     Api *api;
+    LoopbackData *loopback_data;
 
     Music music;
     char music_fp[256];
@@ -82,9 +85,11 @@ typedef struct State {
     Parameters *parameters;
 
     B8 ui;
+    B8 loopback;
 } State;
 
 void StateInitialise();
 void StateUpdate();
 void StateRender();
 void StateDestroy();
+void StatePushFrame(F32 val, F32 *samples, U32 sample_count);

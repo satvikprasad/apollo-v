@@ -1,5 +1,6 @@
-require("plugins.blue_strobe")
-require("plugins.triangle")
+--require("plugins.blue_strobe")
+--require("plugins.triangle")
+require("plugins.waveform")
 
 O = lynx.opt
 

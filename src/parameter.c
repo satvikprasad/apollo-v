@@ -4,7 +4,7 @@
 
 #include "hashmap.h"
 
-static int ParameterCompare(const void *a, const void *b, void *udata) {
+static I64 ParameterCompare(const void *a, const void *b, void *udata) {
     (void)(udata);
 
     Parameter *pa = (Parameter *)a;
@@ -34,8 +34,10 @@ Parameter *ParameterGet(Parameters *params, const char *name) {
 }
 
 F32 ParameterGetValue(Parameters *params, const char *name) {
-    return ((Parameter *)hashmap_get(params, &(Parameter){.name = name}))
-        ->value;
+    Parameter *param =
+        ((Parameter *)hashmap_get(params, &(Parameter){.name = name}));
+
+    return param->value;
 }
 
 void ParameterSet(Parameters *params, Parameter *param) {
@@ -50,3 +52,5 @@ void ParameterSetValue(Parameters *params, const char *name, F32 value) {
                                       .min = prev->min,
                                       .max = prev->max});
 }
+
+U32 ParameterCount(Parameters *params) { return hashmap_count(params); }

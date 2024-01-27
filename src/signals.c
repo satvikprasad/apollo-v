@@ -64,9 +64,7 @@ void SignalsProcessSamples(F32 scale, F32 start_frequency, F32 *samples,
                               filter_count, log_freq, out_frequency_count);
     }
 
-    F32 smooth_frequencies[*out_frequency_count];
-    memcpy(smooth_frequencies, out_frequencies,
-           *out_frequency_count * sizeof(F32));
+    F32 *smooth_frequencies = out_frequencies;
 
     for (U32 i = 0; i < *out_frequency_count; ++i) {
         if (log_freq[i] > -FLT_MAX) {
@@ -74,9 +72,6 @@ void SignalsProcessSamples(F32 scale, F32 start_frequency, F32 *samples,
                 velocity * (log_freq[i] - smooth_frequencies[i]) * dt;
         }
     }
-
-    memcpy(out_frequencies, smooth_frequencies,
-           sizeof(F32) * *out_frequency_count);
 }
 
 void SignalsWindowSamples(F32 *in, F32 *out, U32 length) {
