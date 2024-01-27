@@ -13,4 +13,4 @@ gcc %src% -Wall -Wextra -o build\lynx.exe %include% %linker% -L.\build\
 mkdir -p build\assets
 
 xcopy .\assets .\build\assets /E
-
+xcopy .\lua .\build\lua /E
