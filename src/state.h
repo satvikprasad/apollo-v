@@ -29,8 +29,8 @@ typedef struct StateMemory {
     U32 permanent_storage_size;
 } StateMemory;
 
-#define FONT_SIZES_PER_FONT 25
-#define MAX_FONT_SIZE 50
+#define FONT_SIZES_PER_FONT 12
+#define MAX_FONT_SIZE 100
 
 #define FontClosestToSize(font, size)                                          \
     (font).fonts[ClampI32((size) * FONT_SIZES_PER_FONT / MAX_FONT_SIZE - 1, 0, \
@@ -47,8 +47,8 @@ typedef struct StateFont {
 typedef struct State {
     MemoryArena arena;
 
-    Renderer *renderer;
-    Api *api;
+    RendererData *renderer_data;
+    ApiData *api_data;
     LoopbackData *loopback_data;
 
     Music music;

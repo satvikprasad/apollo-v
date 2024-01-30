@@ -20,7 +20,7 @@
 
 #include "parameter.h"
 
-State *api_state;
+State *p_state;
 
 #define CheckArgument(L, type, index, function)                                \
     if (lua_type(L, index) != type) {                                          \
@@ -30,13 +30,14 @@ State *api_state;
     }
 
 static Color PopColor(lua_State *L);
-static void PushApi(Api *api);
-static ApiData PopApi(Api *api);
+static void PushApi(ApiData *api);
+static ApiInterface PopApi(ApiData *api);
 
 static int RegisterCallback(lua_State *L);
 static void CallCallback(lua_State *L, int *callback);
 static void FreeCallback(lua_State *L, int *callback);
 
+/**
 static void DumpStack(lua_State *L) {
     int top = lua_gettop(L);
     for (int i = 1; i <= top; i++) {
@@ -60,6 +61,7 @@ static void DumpStack(lua_State *L) {
         }
     }
 }
+**/
 
 #define X(func, name) static int func(lua_State *L);
 API_METHODS
@@ -108,8 +110,8 @@ static I32 ApiShaderCompare(const void *a, const void *b, void *udata) {
 
 static void ApiShaderFree(void *el) { UnloadShader(((ApiShader *)el)->shader); }
 
-void ApiCreate(const char *api_fp, void *state, Api *api) {
-    api_state = (State *)state;
+void ApiCreate(const char *api_fp, void *state, ApiData *api) {
+    p_state = (State *)state;
 
     api->lua = luaL_newstate();
     luaL_openlibs(api->lua);
@@ -137,8 +139,8 @@ void ApiCreate(const char *api_fp, void *state, Api *api) {
     api->data = PopApi(api);
 }
 
-void ApiPreUpdate(Api *api, void *state) {
-    api_state = (State *)state;
+void ApiPreUpdate(ApiData *api, void *state) {
+    p_state = (State *)state;
 
     for (U32 i = 0; i < api->pre_update_count; ++i) {
         if (api->pre_update[i] != -1) {
@@ -147,8 +149,8 @@ void ApiPreUpdate(Api *api, void *state) {
     }
 }
 
-void ApiUpdate(Api *api, void *state) {
-    api_state = (State *)state;
+void ApiUpdate(ApiData *api, void *state) {
+    p_state = (State *)state;
 
     for (U32 i = 0; i < api->on_update_count; ++i) {
         if (api->on_update[i] != -1) {
@@ -157,8 +159,8 @@ void ApiUpdate(Api *api, void *state) {
     }
 }
 
-void ApiPreRender(Api *api, void *state) {
-    api_state = (State *)state;
+void ApiPreRender(ApiData *api, void *state) {
+    p_state = (State *)state;
 
     for (U32 i = 0; i < api->pre_render_count; ++i) {
         if (api->pre_render[i] != -1) {
@@ -167,8 +169,8 @@ void ApiPreRender(Api *api, void *state) {
     }
 }
 
-void ApiRender(Api *api, void *state) {
-    api_state = (State *)state;
+void ApiRender(ApiData *api, void *state) {
+    p_state = (State *)state;
 
     for (U32 i = 0; i < api->on_render_count; ++i) {
         if (api->on_render[i] != -1) {
@@ -177,7 +179,7 @@ void ApiRender(Api *api, void *state) {
     }
 }
 
-void ApiDestroy(Api *api) {
+void ApiDestroy(ApiData *api) {
     for (U32 i = 0; i < api->on_update_count; ++i) {
         if (api->on_update[i] != -1) {
             FreeCallback(api->lua, &api->on_update[i]);
@@ -202,12 +204,12 @@ void ApiDestroy(Api *api) {
         }
     }
 
-    hashmap_free(api_state->api->shaders);
+    hashmap_free(p_state->api_data->shaders);
 
     lua_close(api->lua);
 }
 
-void PushApi(Api *api) {
+void PushApi(ApiData *api) {
     lua_newtable(api->lua);
     {
         lua_pushstring(api->lua, "opt");
@@ -360,8 +362,8 @@ void PushColor(lua_State *L, Color c) {
     }
 }
 
-ApiData PopApi(Api *api) {
-    ApiData data;
+ApiInterface PopApi(ApiData *api) {
+    ApiInterface data;
 
     lua_getglobal(api->lua, "lynx");
     {
@@ -401,9 +403,9 @@ void FreeCallback(lua_State *L, ApiCallback *callback) {
 }
 
 static int L_GetMusicTimePlayed(lua_State *L) {
-    F32 time_played = api_state->condition == StateCondition_RECORDING
-                          ? GetTime() - api_state->record_start
-                          : GetMusicTimePlayed(api_state->music);
+    F32 time_played = p_state->condition == StateCondition_RECORDING
+                          ? GetTime() - p_state->record_start
+                          : GetMusicTimePlayed(p_state->music);
 
     lua_pushnumber(L, time_played);
 
@@ -428,7 +430,7 @@ static int L_AddParameter(lua_State *L) {
         .max = max,
     };
 
-    ParameterSet(api_state->parameters, &param);
+    ParameterSet(p_state->parameters, &param);
 
     return 0;
 }
@@ -440,7 +442,7 @@ static int L_SetParameter(lua_State *L) {
     const char *name = lua_tostring(L, 1);
     F32 value = lua_tonumber(L, 2);
 
-    ParameterSetValue(api_state->parameters, name, value);
+    ParameterSetValue(p_state->parameters, name, value);
 
     return 0;
 }
@@ -450,7 +452,7 @@ static int L_GetParameter(lua_State *L) {
 
     const char *name = lua_tostring(L, 1);
 
-    lua_pushnumber(L, ParameterGetValue(api_state->parameters, name));
+    lua_pushnumber(L, ParameterGetValue(p_state->parameters, name));
 
     return 1;
 }
@@ -458,7 +460,7 @@ static int L_GetParameter(lua_State *L) {
 static int L_OnUpdate(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, on_update);
 
-    api_state->api->pre_update[api_state->api->pre_update_count++] =
+    p_state->api_data->pre_update[p_state->api_data->pre_update_count++] =
         RegisterCallback(L);
 
     return 0;
@@ -467,7 +469,7 @@ static int L_OnUpdate(lua_State *L) {
 static int L_PreUpdate(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, pre_update);
 
-    api_state->api->on_update[api_state->api->on_update_count++] =
+    p_state->api_data->on_update[p_state->api_data->on_update_count++] =
         RegisterCallback(L);
 
     return 0;
@@ -476,7 +478,7 @@ static int L_PreUpdate(lua_State *L) {
 static int L_OnRender(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, on_render);
 
-    api_state->api->on_render[api_state->api->on_render_count++] =
+    p_state->api_data->on_render[p_state->api_data->on_render_count++] =
         RegisterCallback(L);
 
     return 0;
@@ -485,7 +487,7 @@ static int L_OnRender(lua_State *L) {
 static int L_PreRender(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, pre_render);
 
-    api_state->api->pre_render[api_state->api->pre_render_count++] =
+    p_state->api_data->pre_render[p_state->api_data->pre_render_count++] =
         RegisterCallback(L);
 
     return 0;
@@ -494,13 +496,13 @@ static int L_PreRender(lua_State *L) {
 int L_SetBgColor(lua_State *L) {
     CheckArgument(L, LUA_TTABLE, 1, set_bg_color);
 
-    api_state->api->data.opt.bg_color = PopColor(L);
+    p_state->api_data->data.opt.bg_color = PopColor(L);
 
     return 0;
 }
 
 int L_GetBgColor(lua_State *L) {
-    PushColor(L, api_state->api->data.opt.bg_color);
+    PushColor(L, p_state->api_data->data.opt.bg_color);
 
     return 1;
 }
@@ -527,7 +529,7 @@ static void PopArray(lua_State *L, F32 *out, U32 count) {
 }
 
 static int L_GetSamples(lua_State *L) {
-    PushArray(L, api_state->samples, SAMPLE_COUNT);
+    PushArray(L, p_state->samples, SAMPLE_COUNT);
 
     return 1;
 }
@@ -542,12 +544,12 @@ static int L_SmoothSignal(lua_State *L) {
     PopArray(L, in, length);
 
     U32 out_length;
-    SignalsSmoothConvolve(NULL, length, NULL, api_state->filter_count, NULL,
+    SignalsSmoothConvolve(NULL, length, NULL, p_state->filter_count, NULL,
                           &out_length);
 
     F32 out[out_length];
-    SignalsSmoothConvolve(in, length, api_state->filter,
-                          api_state->filter_count, out, &out_length);
+    SignalsSmoothConvolve(in, length, p_state->filter, p_state->filter_count,
+                          out, &out_length);
 
     PushArray(L, out, out_length);
 
@@ -558,11 +560,11 @@ static int L_GetScreenSize(lua_State *L) {
     lua_newtable(L);
     {
         lua_pushnumber(L, 1);
-        lua_pushnumber(L, api_state->screen_size.X);
+        lua_pushnumber(L, p_state->screen_size.X);
         lua_settable(L, -3);
 
         lua_pushnumber(L, 2);
-        lua_pushnumber(L, api_state->screen_size.Y);
+        lua_pushnumber(L, p_state->screen_size.Y);
         lua_settable(L, -3);
     }
 
@@ -577,7 +579,7 @@ void ApiError(lua_State *L, const char *msg) {
 }
 
 static HMM_Vec2 PopVec2(lua_State *L) {
-    HMM_Vec2 out;
+    HMM_Vec2 out = {};
 
     if (!lua_istable(L, -1)) {
         ApiError(L, "tried parsing non-table vector");
@@ -647,8 +649,8 @@ static int L_DrawLinedPoly(lua_State *L) {
         lua_pop(L, 1);
     }
 
-    RendererDrawLinedPoly(api_state->renderer, vertices, vertex_count, indices,
-                          index_count, color);
+    RendererDrawLinedPoly(p_state->renderer_data, vertices, vertex_count,
+                          indices, index_count, color);
 
     return 0;
 }
@@ -657,29 +659,29 @@ static int L_BindShader(lua_State *L) {
     const char *fragment_shader;
     const char *vertex_shader;
 
-    if (!lua_isstring(api_state->api->lua, 1)) {
+    if (!lua_isstring(p_state->api_data->lua, 1)) {
         if (!lua_isnumber(L, 2)) {
-            ApiErrorFunction(api_state->api->lua, bind_shader,
+            ApiErrorFunction(p_state->api_data->lua, bind_shader,
                              "received non-string and non-zero vertex shader");
             return 0;
         }
 
         vertex_shader = NULL;
     } else {
-        vertex_shader = lua_tostring(api_state->api->lua, 1);
+        vertex_shader = lua_tostring(p_state->api_data->lua, 1);
     }
 
-    if (!lua_isstring(api_state->api->lua, 2)) {
+    if (!lua_isstring(p_state->api_data->lua, 2)) {
         if (!lua_isnumber(L, 1)) {
             ApiErrorFunction(
-                api_state->api->lua, bind_shader,
+                p_state->api_data->lua, bind_shader,
                 "received non-string and non-zero fragment shader");
             return 0;
         }
 
         fragment_shader = NULL;
     } else {
-        fragment_shader = lua_tostring(api_state->api->lua, 2);
+        fragment_shader = lua_tostring(p_state->api_data->lua, 2);
     }
 
     ApiShader seek = {};
@@ -687,14 +689,15 @@ static int L_BindShader(lua_State *L) {
     strcpy(seek.fragment, fragment_shader);
     strcpy(seek.vertex, vertex_shader);
 
-    ApiShader *shad = (ApiShader *)hashmap_get(api_state->api->shaders, &seek);
+    ApiShader *shad =
+        (ApiShader *)hashmap_get(p_state->api_data->shaders, &seek);
 
     if (shad == NULL) {
         seek.shader = LoadShader(vertex_shader, fragment_shader);
-        hashmap_set(api_state->api->shaders, &seek);
+        hashmap_set(p_state->api_data->shaders, &seek);
     }
 
-    shad = (ApiShader *)hashmap_get(api_state->api->shaders, &seek);
+    shad = (ApiShader *)hashmap_get(p_state->api_data->shaders, &seek);
 
     assert(shad != NULL);
 
@@ -704,6 +707,8 @@ static int L_BindShader(lua_State *L) {
 }
 
 static int L_UnbindShader(lua_State *L) {
+    (void)L;
+
     EndShaderMode();
 
     return 0;
@@ -721,7 +726,7 @@ static int L_DrawCenteredText(lua_State *L) {
 
     HMM_Vec2 pos = PopVec2(L);
 
-    RendererDrawTextCenter(FontClosestToSize(api_state->font, size), text, pos);
+    RendererDrawTextCenter(FontClosestToSize(p_state->font, size), text, pos);
 
     return 0;
 }

@@ -9,6 +9,8 @@
 
 void LoopbackDataCallback(ma_device *device, void *output, const void *input,
                           ma_uint32 frame_count) {
+    (void)output;
+
     State *state = (State *)device->pUserData;
 
     if (state->loopback) {
