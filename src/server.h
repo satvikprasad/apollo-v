@@ -1,10 +1,41 @@
 #pragma once
 
+#include "arena.h"
 #include "defines.h"
+
+#include <curl/curl.h>
+
+typedef struct ServerData {
+    CURL       *curl;
+    const char *uri;
+    pthread_t   thread;
+} ServerData;
 
 typedef struct Memory {
     char *response;
-    U32 size;
+    U32   size;
 } Memory;
 
-void ServerGet(char *url, char *response);
+void ServerInitialise(ServerData *server_data, const char *uri);
+void ServerDestroy(ServerData *server_data);
+void ServerGet(ServerData *server_data, char *endpoint, char *response);
+
+void ServerGetAsync(ServerData *server_data,
+                    char       *endpoint,
+                    void       *user_data,
+                    void (*callback)(void *user_data, char *response),
+                    MemoryArena *arena);
+
+void ServerPost(ServerData *server_data,
+                const char *endpoint,
+                const char *data,
+                char       *response);
+
+void ServerPostAsync(ServerData *server_data,
+                     char       *endpoint,
+                     const char *data,
+                     void       *user_data,
+                     void (*callback)(void *user_data, char *response),
+                     MemoryArena *arena);
+
+void ServerWait(ServerData *server_data);

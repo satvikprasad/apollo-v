@@ -23,3 +23,5 @@ typedef double F64;
 #define RENDER_FPS 60
 #define LOG_MUL 1.06f
 #define START_FREQ 1.0f
+
+#define API_URI "https://lynx-backend-satvikprasad.koyeb.app/api/v1"

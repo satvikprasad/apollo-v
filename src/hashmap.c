@@ -67,11 +67,17 @@ static U64 get_hash(HM_Hashmap *map, const void *key) {
 // hashmap_new_with_allocator returns a new hash map using a custom allocator.
 // See hashmap_new for more information information
 HM_Hashmap *hashmap_new_with_allocator(
-    void *(*_malloc)(U32), void *(*_realloc)(void *, U32),
-    void (*_free)(void *), U32 elsize, U32 cap, U64 seed0, U64 seed1,
+    void *(*_malloc)(U32),
+    void *(*_realloc)(void *, U32),
+    void (*_free)(void *),
+    U32 elsize,
+    U32 cap,
+    U64 seed0,
+    U64 seed1,
     U64 (*hash)(const void *item, U64 seed0, U64 seed1),
     I32 (*compare)(const void *a, const void *b, void *udata),
-    void (*elfree)(void *item), void *udata) {
+    void (*elfree)(void *item),
+    void *udata) {
     _malloc = _malloc ? _malloc : __malloc ? __malloc : malloc;
     _realloc = _realloc ? _realloc : __realloc ? __realloc : realloc;
     _free = _free ? _free : __free ? __free : free;
@@ -89,7 +95,7 @@ HM_Hashmap *hashmap_new_with_allocator(
         bucketsz++;
     }
     // hashmap + spare + edata
-    U32 size = sizeof(HM_Hashmap) + bucketsz * 2;
+    U32         size = sizeof(HM_Hashmap) + bucketsz * 2;
     HM_Hashmap *map = _malloc(size);
     if (!map) {
         return NULL;
@@ -141,11 +147,15 @@ HM_Hashmap *hashmap_new_with_allocator(
 // The hashmap must be freed with hashmap_free().
 // Param `elfree` is a function that frees a specific item. This should be NULL
 // unless you're storing some kind of reference data in the hash.
-HM_Hashmap *hashmap_new(U32 elsize, U32 cap, U64 seed0, U64 seed1,
-                        U64 (*hash)(const void *item, U64 seed0, U64 seed1),
-                        I32 (*compare)(const void *a, const void *b,
-                                       void *udata),
-                        void (*elfree)(void *item), void *udata) {
+HM_Hashmap *
+hashmap_new(U32 elsize,
+            U32 cap,
+            U64 seed0,
+            U64 seed1,
+            U64 (*hash)(const void *item, U64 seed0, U64 seed1),
+            I32 (*compare)(const void *a, const void *b, void *udata),
+            void (*elfree)(void *item),
+            void *udata) {
     return hashmap_new_with_allocator(NULL, NULL, NULL, elsize, cap, seed0,
                                       seed1, hash, compare, elfree, udata);
 }
@@ -245,7 +255,7 @@ const void *hashmap_set_with_hash(HM_Hashmap *map, const void *item, U64 hash) {
     memcpy(eitem, item, map->elsize);
 
     void *bitem;
-    U32 i = entry->hash & map->mask;
+    U32   i = entry->hash & map->mask;
     while (1) {
         HM_Bucket *bucket = bucket_at(map, i);
         if (bucket->dib == 0) {
@@ -309,7 +319,7 @@ const void *hashmap_get(HM_Hashmap *map, const void *key) {
 // is not set for that bucket. The position is 'moduloed' by the number of
 // buckets in the hashmap.
 const void *hashmap_probe(HM_Hashmap *map, U64 position) {
-    U32 i = position & map->mask;
+    U32        i = position & map->mask;
     HM_Bucket *bucket = bucket_at(map, i);
     if (!bucket->dib) {
         return NULL;
@@ -320,8 +330,8 @@ const void *hashmap_probe(HM_Hashmap *map, U64 position) {
 // hashmap_delete_with_hash works like hashmap_delete but you provide your
 // own hash. The 'hash' callback provided to the hashmap_new function
 // will not be called
-const void *hashmap_delete_with_hash(HM_Hashmap *map, const void *key,
-                                     U64 hash) {
+const void *
+hashmap_delete_with_hash(HM_Hashmap *map, const void *key, U64 hash) {
     hash = clip_hash(hash);
     map->oom = false;
     U32 i = hash & map->mask;
@@ -386,7 +396,8 @@ B8 hashmap_oom(HM_Hashmap *map) { return map->oom; }
 // hashmap_scan iterates over all items in the hash map
 // Param `iter` can return false to stop iteration early.
 // Returns false if the iteration has been stopped early.
-B8 hashmap_scan(HM_Hashmap *map, B8 (*iter)(const void *item, void *udata),
+B8 hashmap_scan(HM_Hashmap *map,
+                B8 (*iter)(const void *item, void *udata),
                 void *udata) {
     for (U32 i = 0; i < map->nbuckets; i++) {
         HM_Bucket *bucket = bucket_at(map, i);
@@ -479,12 +490,12 @@ static U64 SIP64(const uint8_t *in, const U32 inlen, U64 seed0, U64 seed1) {
         v1 ^= v2;                                                              \
         v2 = ROTL(v2, 32);                                                     \
     }
-    U64 k0 = U8TO64_LE((uint8_t *)&seed0);
-    U64 k1 = U8TO64_LE((uint8_t *)&seed1);
-    U64 v3 = UINT64_C(0x7465646279746573) ^ k1;
-    U64 v2 = UINT64_C(0x6c7967656e657261) ^ k0;
-    U64 v1 = UINT64_C(0x646f72616e646f6d) ^ k1;
-    U64 v0 = UINT64_C(0x736f6d6570736575) ^ k0;
+    U64            k0 = U8TO64_LE((uint8_t *)&seed0);
+    U64            k1 = U8TO64_LE((uint8_t *)&seed1);
+    U64            v3 = UINT64_C(0x7465646279746573) ^ k1;
+    U64            v2 = UINT64_C(0x6c7967656e657261) ^ k0;
+    U64            v1 = UINT64_C(0x646f72616e646f6d) ^ k1;
+    U64            v0 = UINT64_C(0x736f6d6570736575) ^ k0;
     const uint8_t *end = in + inlen - (inlen % sizeof(U64));
     for (; in != end; in += 8) {
         U64 m = U8TO64_LE(in);
@@ -494,7 +505,7 @@ static U64 SIP64(const uint8_t *in, const U32 inlen, U64 seed0, U64 seed1) {
         v0 ^= m;
     }
     const I32 left = inlen & 7;
-    U64 b = ((U64)inlen) << 56;
+    U64       b = ((U64)inlen) << 56;
     switch (left) {
     case 7:
         b |= ((U64)in[6]) << 48; /* fall through */
@@ -543,16 +554,16 @@ static U64 MM86128(const void *key, const I32 len, uint32_t seed) {
     h ^= h >> 13;                                                              \
     h *= 0xc2b2ae35;                                                           \
     h ^= h >> 16;
-    const uint8_t *data = (const uint8_t *)key;
-    const I32 nblocks = len / 16;
-    uint32_t h1 = seed;
-    uint32_t h2 = seed;
-    uint32_t h3 = seed;
-    uint32_t h4 = seed;
-    uint32_t c1 = 0x239b961b;
-    uint32_t c2 = 0xab0e9789;
-    uint32_t c3 = 0x38b34ae5;
-    uint32_t c4 = 0xa1e38b93;
+    const uint8_t  *data = (const uint8_t *)key;
+    const I32       nblocks = len / 16;
+    uint32_t        h1 = seed;
+    uint32_t        h2 = seed;
+    uint32_t        h3 = seed;
+    uint32_t        h4 = seed;
+    uint32_t        c1 = 0x239b961b;
+    uint32_t        c2 = 0xab0e9789;
+    uint32_t        c3 = 0x38b34ae5;
+    uint32_t        c4 = 0xa1e38b93;
     const uint32_t *blocks = (const uint32_t *)(data + nblocks * 16);
     for (I32 i = -nblocks; i; i++) {
         uint32_t k1 = blocks[i * 4 + 0];
@@ -589,10 +600,10 @@ static U64 MM86128(const void *key, const I32 len, uint32_t seed) {
         h4 = h4 * 5 + 0x32ac3b17;
     }
     const uint8_t *tail = (const uint8_t *)(data + nblocks * 16);
-    uint32_t k1 = 0;
-    uint32_t k2 = 0;
-    uint32_t k3 = 0;
-    uint32_t k4 = 0;
+    uint32_t       k1 = 0;
+    uint32_t       k2 = 0;
+    uint32_t       k3 = 0;
+    uint32_t       k4 = 0;
     switch (len & 15) {
     case 15:
         k4 ^= tail[14] << 16; /* fall through */
@@ -698,16 +709,16 @@ static uint32_t XXH_read32(const void *memptr) {
 static U64 XXH_rotl64(U64 x, I32 r) { return (x << r) | (x >> (64 - r)); }
 
 static U64 xxh3(const void *data, U32 len, U64 seed) {
-    const uint8_t *p = (const uint8_t *)data;
+    const uint8_t       *p = (const uint8_t *)data;
     const uint8_t *const end = p + len;
-    U64 h64;
+    U64                  h64;
 
     if (len >= 32) {
         const uint8_t *const limit = end - 32;
-        U64 v1 = seed + XXH_PRIME_1 + XXH_PRIME_2;
-        U64 v2 = seed + XXH_PRIME_2;
-        U64 v3 = seed + 0;
-        U64 v4 = seed - XXH_PRIME_1;
+        U64                  v1 = seed + XXH_PRIME_1 + XXH_PRIME_2;
+        U64                  v2 = seed + XXH_PRIME_2;
+        U64                  v3 = seed + 0;
+        U64                  v4 = seed - XXH_PRIME_1;
 
         do {
             v1 += XXH_read64(p) * XXH_PRIME_2;
@@ -845,8 +856,8 @@ static U32 deepcount(HM_Hashmap *map) {
 
 #include "hashmap.h"
 
-static B8 rand_alloc_fail = false;
-static I32 rand_alloc_fail_odds = 3; // 1 in 3 chance malloc will fail.
+static B8        rand_alloc_fail = false;
+static I32       rand_alloc_fail_odds = 3; // 1 in 3 chance malloc will fail.
 static uintptr_t total_allocs = 0;
 static uintptr_t total_mem = 0;
 
@@ -871,7 +882,7 @@ static void xfree(void *ptr) {
 }
 
 static void shuffle(void *array, U32 numels, U32 elsize) {
-    char tmp[elsize];
+    char  tmp[elsize];
     char *arr = array;
     for (U32 i = 0; i < numels - 1; i++) {
         I32 j = i + rand() / (RAND_MAX / (numels - i) + 1);
@@ -986,7 +997,7 @@ static void all(void) {
     assert(hashmap_scan(map, iter_ints, &vals2));
 
     // Test hashmap_iter. This does the same as hashmap_scan above.
-    U32 iter = 0;
+    U32   iter = 0;
     void *iter_val;
     while (hashmap_iter(map, &iter, &iter_val)) {
         assert(iter_ints(iter_val, &vals2));
@@ -1082,16 +1093,16 @@ static void all(void) {
             if (strlen(name) > 0) {                                            \
                 printf("%-14s ", name);                                        \
             }                                                                  \
-            U32 tmem = total_mem;                                              \
-            U32 tallocs = total_allocs;                                        \
-            U64 bytes = 0;                                                     \
+            U32     tmem = total_mem;                                          \
+            U32     tallocs = total_allocs;                                    \
+            U64     bytes = 0;                                                 \
             clock_t begin = clock();                                           \
             for (I32 i = 0; i < N; i++) {                                      \
                 (code);                                                        \
             }                                                                  \
             clock_t end = clock();                                             \
-            F64 elapsed_secs = (F64)(end - begin) / CLOCKS_PER_SEC;            \
-            F64 bytes_sec = (F64)bytes / elapsed_secs;                         \
+            F64     elapsed_secs = (F64)(end - begin) / CLOCKS_PER_SEC;        \
+            F64     bytes_sec = (F64)bytes / elapsed_secs;                     \
             printf("%d ops in %.3f secs, %.0f ns/op, %.0f op/sec", N,          \
                    elapsed_secs, elapsed_secs / (F64)N * 1e9,                  \
                    (F64)N / elapsed_secs);                                     \

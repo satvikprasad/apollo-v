@@ -43,6 +43,21 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive build lynx.zip 
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.run_number }}-windows
+          release_name: lynx-v0-0-${{ github.run_number }}-windows
+      - name: Add Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: .\lynx.zip
           asset_name: lynx-v0-0-${{ github.run_number }}.zip
           asset_content_type: application/zip
+

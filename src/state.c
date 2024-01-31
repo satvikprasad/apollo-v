@@ -13,6 +13,7 @@
 #include "defines.h"
 #include "ffmpeg.h"
 #include "handmademath.h"
+#include "json.h"
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
@@ -33,12 +34,12 @@ static void EndRecording();
 static void UpdateRecording();
 
 static void SetFrequencyCount();
-static B8 GetDroppedFiles();
+static B8   GetDroppedFiles();
 
 static void FrameCallback(void *buffer_data, U32 n);
 
 static StateMemory memory;
-static State *state;
+static State      *state;
 
 static StateFont LoadStateFont(const char *fp) {
     StateFont font;
@@ -58,6 +59,15 @@ static void UnloadStateFont(StateFont font) {
     }
 }
 
+static void GetTotalTimeCallback(void *user_data, char *response) {
+    State *state = (State *)user_data;
+
+    char buf[256];
+    JsonObjectGetKey(response, "time", buf);
+
+    state->total_time = atof(buf);
+}
+
 void StateInitialise() {
     memory.permanent_storage_size = 1024 * 1024 * 1024;
     memory.permanent_storage =
@@ -72,8 +82,9 @@ void StateInitialise() {
     state->api_data = ArenaPushStruct(&state->arena, ApiData);
     state->renderer_data = ArenaPushStruct(&state->arena, RendererData);
     state->loopback_data = ArenaPushStruct(&state->arena, LoopbackData);
+    state->server_data = ArenaPushStruct(&state->arena, ServerData);
 
-    // Initialise parameters
+    // Initialise default parameters
     {
         state->parameters = ParameterCreate();
 
@@ -99,7 +110,8 @@ void StateInitialise() {
         state->music = LoadMusicStream(state->music_fp);
     }
 
-    if (state->screen_size.Width == 0.0f || state->screen_size.Height == 0.0f) {
+    if (state->screen_size.Width <= 50.0f ||
+        state->screen_size.Height <= 50.0f) {
         state->screen_size.Width = 1280;
         state->screen_size.Height = 720;
     }
@@ -124,25 +136,33 @@ void StateInitialise() {
                           state->filter_count,
                           ParameterGetValue(state->parameters, "velocity"));
 
-    RendererInitialise(state->renderer_data);
-
     if (IsMusicReady(state->music)) {
         PlayMusicStream(state->music);
         AttachAudioStreamProcessor(state->music.stream, FrameCallback);
     }
 
-    ApiCreate("lua/init.lua", state, state->api_data);
-
+    RendererInitialise(state->renderer_data);
+    ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
+    ServerInitialise(state->server_data, API_URI);
 
-    char response[1024];
-    ServerGet("localhost:3000/api/v1/metrics/total-time", response);
-
-    printf("\n\n\n%s\n\n\n", response);
+    ServerGetAsync(state->server_data, "metrics/total-time", state,
+                   GetTotalTimeCallback, &state->arena);
 }
 
 void StateDestroy() {
+    F64 elapsed = GetTime();
+
+    ServerPostAsync(state->server_data, "add-metric",
+                    TextFormat("{\"time\": %f}", elapsed), NULL, NULL,
+                    &state->arena);
+
+    ServerWait(state->server_data);
+
     Serialize();
+
+    ServerDestroy(state->server_data);
+
     ApiDestroy(state->api_data);
 
     LoopbackDestroy(state->loopback_data);
@@ -352,7 +372,7 @@ static void Serialize() {
         fwrite(&param_count, sizeof(U32), 1, fptr);
 
         Parameter *parameter;
-        U32 _ = 0;
+        U32        _ = 0;
         while (ParameterIter(state->parameters, &_, &parameter)) {
             WriteString(parameter->name, fptr);
             fwrite(&parameter->value, sizeof(F32), 1, fptr);
@@ -379,7 +399,7 @@ static bool Deserialize() {
 
             for (U32 i = 0; i < param_count; ++i) {
                 char buf[256];
-                F32 value, min, max;
+                F32  value, min, max;
 
                 ReadString(buf, fptr);
 
@@ -403,9 +423,12 @@ static bool Deserialize() {
     return false;
 }
 
-static void RenderParameterSlider(const char *name, Rectangle rect,
-                                  const char *text_left, const char *text_right,
-                                  F32 min, F32 max) {
+static void RenderParameterSlider(const char *name,
+                                  Rectangle   rect,
+                                  const char *text_left,
+                                  const char *text_right,
+                                  F32         min,
+                                  F32         max) {
     F32 val = ParameterGetValue(state->parameters, name);
 
     GuiSlider(rect, text_left, text_right, &val, min, max);
@@ -422,7 +445,7 @@ static void RenderUI() {
         F32 top_padding = 10;
 
         Parameter *parameter;
-        U32 _, i = 0;
+        U32        _, i = 0;
         while (ParameterIter(state->parameters, &_, &parameter)) {
             RenderParameterSlider(
                 parameter->name,
@@ -438,6 +461,9 @@ static void RenderUI() {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
+
+        GuiLabel((Rectangle){100, 200, 100, 100},
+                 TextFormat("Total time: %3.f", state->total_time + GetTime()));
     } else {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
             state->ui = true;
