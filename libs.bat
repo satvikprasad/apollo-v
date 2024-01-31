@@ -1,3 +1,5 @@
+@echo off
+
 git submodule update --init --recursive
 
 REM Raylib
@@ -31,7 +33,7 @@ rm curl-8.5.0.tar.gz
 
 cd curl-8.5.0
 
-.\configure --with-openssl --disable-shared
+sh configure --with-openssl --disable-shared
 make
 make install
 
