@@ -144,7 +144,7 @@ void StateInitialise() {
     RendererInitialise(state->renderer_data);
     ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
-    ServerInitialise(state->server_data, API_URI);
+    ServerInitialise(state->server_data, API_URI, &state->arena);
 
     ServerGetAsync(state->server_data, "metrics/total-time", state,
                    GetTotalTimeCallback, &state->arena);

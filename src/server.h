@@ -2,13 +2,14 @@
 
 #include "arena.h"
 #include "defines.h"
+#include "thread.h"
 
 #include <curl/curl.h>
 
 typedef struct ServerData {
     CURL       *curl;
     const char *uri;
-    pthread_t   thread;
+    Thread     *thread;
 } ServerData;
 
 typedef struct Memory {
@@ -16,7 +17,9 @@ typedef struct Memory {
     U32   size;
 } Memory;
 
-void ServerInitialise(ServerData *server_data, const char *uri);
+void ServerInitialise(ServerData  *server_data,
+                      const char  *uri,
+                      MemoryArena *arena);
 void ServerDestroy(ServerData *server_data);
 void ServerGet(ServerData *server_data, char *endpoint, char *response);
 

@@ -1,10 +1,10 @@
 #include "arena.h"
 #include "defines.h"
+#include "thread.h"
 
 #include "server.h"
 
 #include <curl/curl.h>
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -27,9 +27,12 @@ static inline U32 WriteFunc(void *data, U32 size, U32 nmemb, void *p_client) {
     return write_size;
 }
 
-void ServerInitialise(ServerData *server_data, const char *uri) {
+void ServerInitialise(ServerData  *server_data,
+                      const char  *uri,
+                      MemoryArena *arena) {
     server_data->curl = curl_easy_init();
     server_data->uri = uri;
+    server_data->thread = ThreadAlloc(arena);
 }
 
 void ServerDestroy(ServerData *server_data) {
@@ -105,7 +108,7 @@ void ServerGetAsync(ServerData *server_data,
     args->user_data = user_data;
     args->callback = callback;
 
-    pthread_create(&server_data->thread, NULL, GetRequestThread, args);
+    ThreadCreate(server_data->thread, GetRequestThread, args);
 }
 
 void ServerPost(ServerData *server_data,
@@ -181,9 +184,7 @@ void ServerPostAsync(ServerData *server_data,
     args->user_data = user_data;
     args->callback = callback;
 
-    pthread_create(&server_data->thread, NULL, PostRequestThread, args);
+    ThreadCreate(server_data->thread, PostRequestThread, args);
 }
 
-void ServerWait(ServerData *server_data) {
-    pthread_join(server_data->thread, NULL);
-}
+void ServerWait(ServerData *server_data) { ThreadJoin(server_data->thread); }
