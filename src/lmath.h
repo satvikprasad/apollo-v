@@ -10,4 +10,4 @@ F32 ClampF32(F32 v, F32 min, F32 max);
 I32 ClampI32(I32 v, I32 min, I32 max);
 
 HMM_Vec2 RayToHMMV2(Vector2 v);
-Vector2 HMMToRayV2(HMM_Vec2 v);
+Vector2  HMMToRayV2(HMM_Vec2 v);

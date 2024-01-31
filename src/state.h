@@ -10,6 +10,7 @@
 #include "parameter.h"
 #include "raylib.h"
 #include "renderer.h"
+#include "server.h"
 
 typedef struct State State;
 
@@ -26,7 +27,7 @@ typedef enum StateCondition {
 
 typedef struct StateMemory {
     void *permanent_storage;
-    U32 permanent_storage_size;
+    U32   permanent_storage_size;
 } StateMemory;
 
 #define FONT_SIZES_PER_FONT 12
@@ -48,11 +49,12 @@ typedef struct State {
     MemoryArena arena;
 
     RendererData *renderer_data;
-    ApiData *api_data;
+    ApiData      *api_data;
     LoopbackData *loopback_data;
+    ServerData   *server_data;
 
     Music music;
-    char music_fp[256];
+    char  music_fp[256];
 
     StateFont font;
 
@@ -74,7 +76,7 @@ typedef struct State {
     struct {
         Wave wave;
         F32 *wave_samples;
-        U32 wave_cursor;
+        U32  wave_cursor;
     } record_data;
 
     F32 filter[1 << 3];
@@ -86,6 +88,8 @@ typedef struct State {
 
     B8 ui;
     B8 loopback;
+
+    F64 total_time;
 } State;
 
 void StateInitialise();

@@ -1,14 +1,17 @@
 // #define MINIAUDIO_IMPLEMENTATION
 #include "loopback.h"
-#include "miniaudio.h"
 #include "state.h"
 
 #include "defines.h"
+
+#include <miniaudio.h>
 #include <stdbool.h>
 #include <stdio.h>
 
-void LoopbackDataCallback(ma_device *device, void *output, const void *input,
-                          ma_uint32 frame_count) {
+void LoopbackDataCallback(ma_device  *device,
+                          void       *output,
+                          const void *input,
+                          ma_uint32   frame_count) {
     (void)output;
 
     State *state = (State *)device->pUserData;
