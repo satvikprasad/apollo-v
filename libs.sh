@@ -1,5 +1,3 @@
-@echo off
-
 git submodule update --init --recursive
 
 # Raylib
@@ -33,6 +31,7 @@ rm curl-8.5.0.tar.gz
 
 cd curl-8.5.0
 
+export MACOSX_DEPLOYMENT_TARGET=10.13
 ./configure --with-openssl --disable-shared
 make
 make install
