@@ -1,9 +1,8 @@
 @echo off
 
-SET include=-Ilib\raylib\src -Ilib\lua-5.4.6\src
-SET linker=lib\raylib\src\libraylib.a lib\lua-5.4.6\src\liblua.a -lgdi32 -lole32 -loleaut32 -limm32 -lwinmm
-SET src=src\lmath.c src\main.c src\state.c src\ffmpeg_windows.c src\signals.c src\renderer.c src\parameter.c src\hashmap.c src\loopback.c src\api.c src\arena.c src\permanent_storage.c
-
+SET include=-Ilib\raylib\src -Ilib\lua-5.4.6\src -Ilib\miniaudio -Ilib\jsmn
+SET linker=lib\raylib\src\libraylib.a lib\lua-5.4.6\src\liblua.a -lgdi32 -lole32 -loleaut32 -limm32 -lwinmm -lcurl
+SET src=src\lmath.c src\hashmap.c src\main.c src\state.c src\ffmpeg_unix.c src\signals.c src\renderer.c src\parameter.c src\api.c src\arena.c src\permanent_storage.c src\loopback.c src\server.c src\json.c
 mkdir build
 
 REM gcc src\state.c -o .\build\libstate.so -fPIC -shared %include% %linker%

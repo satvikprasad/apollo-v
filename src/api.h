@@ -43,25 +43,25 @@ typedef struct ApiShader {
 
 #define MAX_API_CALLBACKS 256
 typedef struct ApiData {
-    lua_State *lua;
+    lua_State   *lua;
     ApiInterface data;
 
     ApiCallback pre_update[MAX_API_CALLBACKS];
-    U32 pre_update_count;
+    U32         pre_update_count;
 
     ApiCallback on_update[MAX_API_CALLBACKS];
-    U32 on_update_count;
+    U32         on_update_count;
 
     ApiCallback pre_render[MAX_API_CALLBACKS];
-    U32 pre_render_count;
+    U32         pre_render_count;
 
     ApiCallback on_render[MAX_API_CALLBACKS];
-    U32 on_render_count;
+    U32         on_render_count;
 
     HM_Hashmap *shaders;
 } ApiData;
 
-void ApiCreate(const char *api_fp, void *state, ApiData *api);
+void ApiInitialise(const char *api_fp, void *state, ApiData *api);
 void ApiPreUpdate(ApiData *api, void *state);
 void ApiUpdate(ApiData *api, void *state);
 void ApiPreRender(ApiData *api, void *state);

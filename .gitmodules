@@ -1,3 +1,9 @@
 [submodule "lib/raylib"]
 	path = lib/raylib
 	url = https://github.com/raysan5/raylib
+[submodule "lib/miniaudio"]
+	path = lib/miniaudio
+	url = https://github.com/mackron/miniaudio
+[submodule "lib/jsmn"]
+	path = lib/jsmn
+	url = https://github.com/zserge/jsmn
