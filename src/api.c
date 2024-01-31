@@ -29,11 +29,11 @@ State *p_state;
         return 0;                                                              \
     }
 
-static Color PopColor(lua_State *L);
-static void PushApi(ApiData *api);
+static Color        PopColor(lua_State *L);
+static void         PushApi(ApiData *api);
 static ApiInterface PopApi(ApiData *api);
 
-static int RegisterCallback(lua_State *L);
+static int  RegisterCallback(lua_State *L);
 static void CallCallback(lua_State *L, int *callback);
 static void FreeCallback(lua_State *L, int *callback);
 
@@ -110,7 +110,7 @@ static I32 ApiShaderCompare(const void *a, const void *b, void *udata) {
 
 static void ApiShaderFree(void *el) { UnloadShader(((ApiShader *)el)->shader); }
 
-void ApiCreate(const char *api_fp, void *state, ApiData *api) {
+void ApiInitialise(const char *api_fp, void *state, ApiData *api) {
     p_state = (State *)state;
 
     api->lua = luaL_newstate();
@@ -419,9 +419,9 @@ static int L_AddParameter(lua_State *L) {
     CheckArgument(L, LUA_TNUMBER, 4, add_param);
 
     const char *name = lua_tostring(L, 1);
-    F32 value = lua_tonumber(L, 2);
-    F32 min = lua_tonumber(L, 3);
-    F32 max = lua_tonumber(L, 4);
+    F32         value = lua_tonumber(L, 2);
+    F32         min = lua_tonumber(L, 3);
+    F32         max = lua_tonumber(L, 4);
 
     Parameter param = {
         .name = name,
@@ -440,7 +440,7 @@ static int L_SetParameter(lua_State *L) {
     CheckArgument(L, LUA_TNUMBER, 2, set_param);
 
     const char *name = lua_tostring(L, 1);
-    F32 value = lua_tonumber(L, 2);
+    F32         value = lua_tonumber(L, 2);
 
     ParameterSetValue(p_state->parameters, name, value);
 
@@ -720,7 +720,7 @@ static int L_DrawCenteredText(lua_State *L) {
     CheckArgument(L, LUA_TNUMBER, 3, draw_centered_text);
 
     const char *text = lua_tostring(L, 1);
-    U32 size = lua_tonumber(L, 3);
+    U32         size = lua_tonumber(L, 3);
 
     lua_pop(L, 1);
 

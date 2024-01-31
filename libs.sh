@@ -1,3 +1,7 @@
+@echo off
+
+git submodule update --init --recursive
+
 # Raylib
 cd lib/raylib/src
 
