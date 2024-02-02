@@ -16,7 +16,7 @@ typedef enum Shaders {
 
 typedef struct RendererData {
     Texture2D textures[TEXTURES_MAX];
-    Shader shaders[SHADERS_MAX];
+    Shader    shaders[SHADERS_MAX];
 
     RenderTexture2D screen;
 
@@ -30,20 +30,32 @@ void RendererDestroy(RendererData *renderer);
 
 void RendererSetRenderSize(RendererData *renderer, HMM_Vec2 render_size);
 
-void RendererDrawWaveform(RendererData *renderer, U32 sample_count,
-                          F32 *samples, F32 wave_width_multiplier);
+void RendererDrawWaveform(RendererData *renderer,
+                          U32           sample_count,
+                          F32          *samples,
+                          F32           wave_width_multiplier);
 
-void RendererDrawFrequencies(RendererData *renderer, U32 frequency_count,
-                             F32 *frequencies, B8 outline,
+void RendererDrawFrequencies(RendererData *renderer,
+                             U32           frequency_count,
+                             F32          *frequencies,
+                             B8            outline,
                              color_func_t *color_func);
 
-void RendererDrawCircleFrequencies(RendererData *renderer, U32 frequency_count,
-                                   F32 *frequencies, color_func_t color_func);
+void RendererDrawCircleFrequencies(RendererData *renderer,
+                                   U32           frequency_count,
+                                   F32          *frequencies,
+                                   color_func_t  color_func);
 
-void RendererDrawTextCenter(Font font, const char *text, HMM_Vec2 center);
+void RendererDrawTextCenter(Font        font,
+                            const char *text,
+                            HMM_Vec2    center,
+                            Color       color);
 
 void RendererBeginRecording(RendererData *renderer);
 void RendererEndRecording(RendererData *renderer, I32 ffmpeg);
-void RendererDrawLinedPoly(RendererData *renderer, HMM_Vec2 *vertices,
-                           U32 vertex_count, HMM_Vec2 *indices, U32 index_count,
-                           Color color);
+void RendererDrawLinedPoly(RendererData *renderer,
+                           HMM_Vec2     *vertices,
+                           U32           vertex_count,
+                           HMM_Vec2     *indices,
+                           U32           index_count,
+                           Color         color);

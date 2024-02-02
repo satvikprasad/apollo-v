@@ -2,10 +2,12 @@
 
 #include <complex.h>
 
+#include "animation.h"
 #include "api.h"
 #include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
+#include "hashmap.h"
 #include "loopback.h"
 #include "parameter.h"
 #include "raylib.h"
@@ -19,6 +21,7 @@ typedef enum StateCondition {
     StateCondition_ERROR,
     StateCondition_LOAD,
     StateCondition_RECORDING,
+    StateCondition_EXITING,
 } StateCondition;
 
 #define MAX_PARAM_COUNT 100
@@ -45,6 +48,7 @@ typedef struct StateFont {
     Font fonts[FONT_SIZES_PER_FONT];
 } StateFont;
 
+#define MAX_ANIMATION_COUNT 512
 typedef struct State {
     MemoryArena arena;
 
@@ -69,6 +73,8 @@ typedef struct State {
 
     F32 dt;
 
+    Animations *animations;
+
     F32 record_start;
 
     I32 ffmpeg;
@@ -89,11 +95,21 @@ typedef struct State {
     B8 ui;
     B8 loopback;
 
-    F64 total_time;
+    B8 should_close;
+
+    Thread *recording_thread;
 } State;
 
-void StateInitialise();
-void StateUpdate();
-void StateRender();
-void StateDestroy();
-void StatePushFrame(F32 val, F32 *samples, U32 sample_count);
+void
+StateInitialise();
+void
+StateUpdate();
+void
+StateRender();
+void
+StateDestroy();
+void
+StatePushFrame(F32 val, F32 *samples, U32 sample_count);
+
+B8
+StateShouldClose();

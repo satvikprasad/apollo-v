@@ -10,10 +10,14 @@
 #include "lmath.h"
 
 static inline Color DefaultColorFunc(F32 t);
-static inline void DrawFrequencyPolygon(Texture2D tex, HMM_Vec2 *indices,
-                                        U32 index_count, HMM_Vec2 *vertices,
-                                        U32 vertex_count, Color *colors,
-                                        U32 color_count, F32 bottom);
+static inline void  DrawFrequencyPolygon(Texture2D tex,
+                                         HMM_Vec2 *indices,
+                                         U32       index_count,
+                                         HMM_Vec2 *vertices,
+                                         U32       vertex_count,
+                                         Color    *colors,
+                                         U32       color_count,
+                                         F32       bottom);
 
 void RendererInitialise(RendererData *renderer) {
     renderer->shaders[Shaders_CIRCLE_LINES] =
@@ -64,8 +68,10 @@ void RendererSetRenderSize(RendererData *renderer, HMM_Vec2 render_size) {
     renderer->render_size = render_size;
 }
 
-void RendererDrawWaveform(RendererData *renderer, U32 sample_count,
-                          F32 *samples, F32 wave_width_multiplier) {
+void RendererDrawWaveform(RendererData *renderer,
+                          U32           sample_count,
+                          F32          *samples,
+                          F32           wave_width_multiplier) {
     U32 count = renderer->render_size.Width;
     F32 cell_width = ceilf((F32)renderer->render_size.Width / count);
 
@@ -90,17 +96,19 @@ void RendererDrawWaveform(RendererData *renderer, U32 sample_count,
     }
 }
 
-void RendererDrawFrequencies(RendererData *renderer, U32 frequency_count,
-                             F32 *frequencies, B8 outline,
+void RendererDrawFrequencies(RendererData *renderer,
+                             U32           frequency_count,
+                             F32          *frequencies,
+                             B8            outline,
                              color_func_t *color_func) {
     F32 cell_width = (F32)renderer->render_size.Width / ((F32)frequency_count);
 
-    U32 vertex_count = frequency_count;
+    U32      vertex_count = frequency_count;
     HMM_Vec2 vertices[vertex_count];
 
     Color colors[vertex_count];
 
-    U32 index_count = vertex_count;
+    U32      index_count = vertex_count;
     HMM_Vec2 indices[index_count];
 
     for (U32 i = 0; i < vertex_count; ++i) {
@@ -138,9 +146,12 @@ void RendererDrawFrequencies(RendererData *renderer, U32 frequency_count,
     }
 }
 
-void RendererDrawLinedPoly(RendererData *renderer, HMM_Vec2 *vertices,
-                           U32 vertex_count, HMM_Vec2 *indices, U32 index_count,
-                           Color color) {
+void RendererDrawLinedPoly(RendererData *renderer,
+                           HMM_Vec2     *vertices,
+                           U32           vertex_count,
+                           HMM_Vec2     *indices,
+                           U32           index_count,
+                           Color         color) {
     assert(index_count == vertex_count &&
            "Index count must be equal to vertex count.");
 
@@ -160,8 +171,10 @@ void RendererDrawLinedPoly(RendererData *renderer, HMM_Vec2 *vertices,
     rlEnd();
 }
 
-void RendererDrawCircleFrequencies(RendererData *renderer, U32 frequency_count,
-                                   F32 *frequencies, color_func_t color_func) {
+void RendererDrawCircleFrequencies(RendererData *renderer,
+                                   U32           frequency_count,
+                                   F32          *frequencies,
+                                   color_func_t  color_func) {
     for (U32 i = 0; i < frequency_count; i += 10) {
         F32 t = frequencies[i];
 
@@ -177,24 +190,31 @@ void RendererDrawCircleFrequencies(RendererData *renderer, U32 frequency_count,
     }
 }
 
-void RendererDrawTextCenter(Font font, const char *text, HMM_Vec2 center) {
+void RendererDrawTextCenter(Font        font,
+                            const char *text,
+                            HMM_Vec2    center,
+                            Color       color) {
     U32 font_size = font.baseSize;
 
     HMM_Vec2 size = RayToHMMV2(MeasureTextEx(font, text, font_size, 1));
 
     HMM_Vec2 corner = HMM_SubV2(center, HMM_MulV2F(size, 0.5f));
 
-    DrawTextEx(font, text, HMMToRayV2(corner), font_size, 1, WHITE);
+    DrawTextEx(font, text, HMMToRayV2(corner), font_size, 1, color);
 }
 
 static inline Color DefaultColorFunc(F32 t) {
     return (Color){t * 200, t * 125, sin(t * GetTime()) * 50 + 200, 255};
 }
 
-static inline void DrawFrequencyPolygon(Texture2D tex, HMM_Vec2 *indices,
-                                        U32 index_count, HMM_Vec2 *vertices,
-                                        U32 vertex_count, Color *colors,
-                                        U32 color_count, F32 bottom) {
+static inline void DrawFrequencyPolygon(Texture2D tex,
+                                        HMM_Vec2 *indices,
+                                        U32       index_count,
+                                        HMM_Vec2 *vertices,
+                                        U32       vertex_count,
+                                        Color    *colors,
+                                        U32       color_count,
+                                        F32       bottom) {
     assert(index_count == vertex_count && vertex_count == color_count &&
            "Index count must be equal to vertex count.");
 

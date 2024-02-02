@@ -15,11 +15,13 @@ I32 main(void) {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1280, 1080, "Lynx");
 
+    SetExitKey(KEY_NULL);
+
     SetTargetFPS(144);
     InitAudioDevice();
 
     StateInitialise();
-    while (!WindowShouldClose()) {
+    while (!StateShouldClose()) {
         StateUpdate();
         StateRender();
     }

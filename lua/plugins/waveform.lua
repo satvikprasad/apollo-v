@@ -4,6 +4,16 @@ local vertices = {}
 local indices = {}
 local screen_size
 
+A.animation.add("test", function(animation, _)
+    local elapsed = A.animation.get_elapsed(animation)
+
+    A.animation.set_val(animation, math.sin(elapsed)*0.5 + 0.5)
+
+    if elapsed > 3.1415*2 then
+        A.animation.set_finished(animation)
+    end
+end)
+
 A.add_param("font_size", 20, 10, 100)
 
 A.on_update(function()
@@ -27,7 +37,7 @@ A.pre_render(function()
 
     A.unbind_shader()
 
-    A.draw_centered_text("Waveform", {255, 255}, A.get_param("font_size"))
+    A.draw_centered_text("Waveform", {255, 255*A.animation.load("test", 0.5)}, A.get_param("font_size"))
 end)
 
 function table.copy(t)
