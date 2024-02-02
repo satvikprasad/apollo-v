@@ -15,7 +15,7 @@ static inline void DrawFrequencyPolygon(Texture2D tex, HMM_Vec2 *indices,
                                         U32 vertex_count, Color *colors,
                                         U32 color_count, F32 bottom);
 
-void RendererInitialise(Renderer *renderer) {
+void RendererInitialise(RendererData *renderer) {
     renderer->shaders[Shaders_CIRCLE_LINES] =
         LoadShader(0, "assets/shaders/circle_lines.fs");
     renderer->shaders[Shaders_LR_GRADIENT] =
@@ -27,7 +27,7 @@ void RendererInitialise(Renderer *renderer) {
     renderer->screen = LoadRenderTexture(1280, 720);
 }
 
-void RendererDestroy(Renderer *renderer) {
+void RendererDestroy(RendererData *renderer) {
     for (U32 i = 0; i < SHADERS_MAX; ++i) {
         if (IsShaderReady(renderer->shaders[i])) {
             // UnloadShader(renderer->shaders[i]);
@@ -43,7 +43,7 @@ void RendererDestroy(Renderer *renderer) {
     UnloadRenderTexture(renderer->screen);
 }
 
-void RendererBeginRecording(Renderer *renderer) {
+void RendererBeginRecording(RendererData *renderer) {
     assert(IsRenderTextureReady(renderer->screen));
 
     RendererSetRenderSize(renderer, HMM_V2(renderer->screen.texture.width,
@@ -52,7 +52,7 @@ void RendererBeginRecording(Renderer *renderer) {
     BeginTextureMode(renderer->screen);
 }
 
-void RendererEndRecording(Renderer *renderer, I32 ffmpeg) {
+void RendererEndRecording(RendererData *renderer, I32 ffmpeg) {
     EndTextureMode();
 
     Image image = LoadImageFromTexture(renderer->screen.texture);
@@ -60,12 +60,12 @@ void RendererEndRecording(Renderer *renderer, I32 ffmpeg) {
     UnloadImage(image);
 }
 
-void RendererSetRenderSize(Renderer *renderer, HMM_Vec2 render_size) {
+void RendererSetRenderSize(RendererData *renderer, HMM_Vec2 render_size) {
     renderer->render_size = render_size;
 }
 
-void RendererDrawWaveform(Renderer *renderer, U32 sample_count, F32 *samples,
-                          F32 wave_width_multiplier) {
+void RendererDrawWaveform(RendererData *renderer, U32 sample_count,
+                          F32 *samples, F32 wave_width_multiplier) {
     U32 count = renderer->render_size.Width;
     F32 cell_width = ceilf((F32)renderer->render_size.Width / count);
 
@@ -90,7 +90,7 @@ void RendererDrawWaveform(Renderer *renderer, U32 sample_count, F32 *samples,
     }
 }
 
-void RendererDrawFrequencies(Renderer *renderer, U32 frequency_count,
+void RendererDrawFrequencies(RendererData *renderer, U32 frequency_count,
                              F32 *frequencies, B8 outline,
                              color_func_t *color_func) {
     F32 cell_width = (F32)renderer->render_size.Width / ((F32)frequency_count);
@@ -138,9 +138,15 @@ void RendererDrawFrequencies(Renderer *renderer, U32 frequency_count,
     }
 }
 
-void RendererDrawLinedPoly(Renderer *renderer, HMM_Vec2 *vertices,
+void RendererDrawLinedPoly(RendererData *renderer, HMM_Vec2 *vertices,
                            U32 vertex_count, HMM_Vec2 *indices, U32 index_count,
                            Color color) {
+    assert(index_count == vertex_count &&
+           "Index count must be equal to vertex count.");
+
+    (void)vertex_count;
+    (void)renderer;
+
     rlBegin(RL_LINES);
     {
         rlColor4ub(color.r, color.g, color.b, color.a);
@@ -154,7 +160,7 @@ void RendererDrawLinedPoly(Renderer *renderer, HMM_Vec2 *vertices,
     rlEnd();
 }
 
-void RendererDrawCircleFrequencies(Renderer *renderer, U32 frequency_count,
+void RendererDrawCircleFrequencies(RendererData *renderer, U32 frequency_count,
                                    F32 *frequencies, color_func_t color_func) {
     for (U32 i = 0; i < frequency_count; i += 10) {
         F32 t = frequencies[i];

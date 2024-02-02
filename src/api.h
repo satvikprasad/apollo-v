@@ -28,11 +28,11 @@
 
 typedef I32 ApiCallback;
 
-typedef struct ApiData {
+typedef struct ApiInterface {
     struct {
         Color bg_color;
     } opt;
-} ApiData;
+} ApiInterface;
 
 typedef struct ApiShader {
     char vertex[256];
@@ -42,29 +42,29 @@ typedef struct ApiShader {
 } ApiShader;
 
 #define MAX_API_CALLBACKS 256
-typedef struct Api {
-    lua_State *lua;
-    ApiData data;
+typedef struct ApiData {
+    lua_State   *lua;
+    ApiInterface data;
 
     ApiCallback pre_update[MAX_API_CALLBACKS];
-    U32 pre_update_count;
+    U32         pre_update_count;
 
     ApiCallback on_update[MAX_API_CALLBACKS];
-    U32 on_update_count;
+    U32         on_update_count;
 
     ApiCallback pre_render[MAX_API_CALLBACKS];
-    U32 pre_render_count;
+    U32         pre_render_count;
 
     ApiCallback on_render[MAX_API_CALLBACKS];
-    U32 on_render_count;
+    U32         on_render_count;
 
     HM_Hashmap *shaders;
-} Api;
+} ApiData;
 
-void ApiCreate(const char *api_fp, void *state, Api *api);
-void ApiPreUpdate(Api *api, void *state);
-void ApiUpdate(Api *api, void *state);
-void ApiPreRender(Api *api, void *state);
-void ApiRender(Api *api, void *state);
-void ApiDestroy(Api *api);
+void ApiInitialise(const char *api_fp, void *state, ApiData *api);
+void ApiPreUpdate(ApiData *api, void *state);
+void ApiUpdate(ApiData *api, void *state);
+void ApiPreRender(ApiData *api, void *state);
+void ApiRender(ApiData *api, void *state);
+void ApiDestroy(ApiData *api);
 void ApiError(lua_State *L, const char *msg);

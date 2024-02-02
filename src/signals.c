@@ -14,10 +14,17 @@
 // To convert from regular sample count to logarithmic frequency count, pass in
 // NULL for *out_frequencies e.g SignalsProcessSamples(LOG_MUL, START_FREQ, 0,
 // SAMPLE_COUNT, NULL, &freq_count_ptr, 0, SMOOTHING)
-void SignalsProcessSamples(F32 scale, F32 start_frequency, F32 *samples,
-                           U32 sample_count, F32 *out_frequencies,
-                           U32 *out_frequency_count, F32 dt, U32 smoothing,
-                           F32 *filter, U32 filter_count, U32 velocity) {
+void SignalsProcessSamples(F32  scale,
+                           F32  start_frequency,
+                           F32 *samples,
+                           U32  sample_count,
+                           F32 *out_frequencies,
+                           U32 *out_frequency_count,
+                           F32  dt,
+                           U32  smoothing,
+                           F32 *filter,
+                           U32  filter_count,
+                           U32  velocity) {
     *out_frequency_count =
         logf((0.5f * (F32)sample_count) / start_frequency) / logf(scale);
 
@@ -31,7 +38,7 @@ void SignalsProcessSamples(F32 scale, F32 start_frequency, F32 *samples,
 
     F32 max_amp = 0.0f;
 
-    F32 window_buffer[sample_count];
+    F32           window_buffer[sample_count];
     float complex frequencies[sample_count];
 
     SignalsWindowSamples(samples, window_buffer, sample_count);
@@ -109,8 +116,12 @@ void SignalsFFT(F32 in[], U32 stride, float complex out[], U32 n) {
     }
 }
 
-void SignalsSmoothConvolve(F32 *elements, U32 element_count, F32 *filter,
-                           U32 filter_count, F32 *out, U32 *out_count) {
+void SignalsSmoothConvolve(F32 *elements,
+                           U32  element_count,
+                           F32 *filter,
+                           U32  filter_count,
+                           F32 *out,
+                           U32 *out_count) {
     *out_count = filter_count + element_count - 1;
 
     if (elements == NULL || filter == NULL || out == NULL)
@@ -140,8 +151,11 @@ void SignalsSmoothConvolve(F32 *elements, U32 element_count, F32 *filter,
     memcpy(out, y, sizeof(F32) * (*out_count));
 }
 
-void SignalsSmoothConvolveV2Y(HMM_Vec2 *elements, U32 element_count,
-                              F32 *filter, U32 filter_count, HMM_Vec2 *out) {
+void SignalsSmoothConvolveV2Y(HMM_Vec2 *elements,
+                              U32       element_count,
+                              F32      *filter,
+                              U32       filter_count,
+                              HMM_Vec2 *out) {
     HMM_Vec2 y[element_count];
 
     for (U32 i = 0; i < element_count; ++i) {

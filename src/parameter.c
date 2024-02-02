@@ -4,7 +4,7 @@
 
 #include "hashmap.h"
 
-static I64 ParameterCompare(const void *a, const void *b, void *udata) {
+static I32 ParameterCompare(const void *a, const void *b, void *udata) {
     (void)(udata);
 
     Parameter *pa = (Parameter *)a;

@@ -13,11 +13,12 @@
 #include "defines.h"
 #include "ffmpeg.h"
 #include "handmademath.h"
-#include "hashmap.h"
+#include "json.h"
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
 #include "renderer.h"
+#include "server.h"
 #include "signals.h"
 
 #define RAYGUI_IMPLEMENTATION
@@ -33,12 +34,12 @@ static void EndRecording();
 static void UpdateRecording();
 
 static void SetFrequencyCount();
-static B8 GetDroppedFiles();
+static B8   GetDroppedFiles();
 
 static void FrameCallback(void *buffer_data, U32 n);
 
 static StateMemory memory;
-static State *state;
+static State      *state;
 
 static StateFont LoadStateFont(const char *fp) {
     StateFont font;
@@ -58,6 +59,15 @@ static void UnloadStateFont(StateFont font) {
     }
 }
 
+static void GetTotalTimeCallback(void *user_data, char *response) {
+    State *state = (State *)user_data;
+
+    char buf[256];
+    JsonObjectGetKey(response, "time", buf);
+
+    state->total_time = atof(buf);
+}
+
 void StateInitialise() {
     memory.permanent_storage_size = 1024 * 1024 * 1024;
     memory.permanent_storage =
@@ -69,11 +79,12 @@ void StateInitialise() {
                     memory.permanent_storage_size - sizeof(State),
                     (U8 *)memory.permanent_storage + sizeof(State));
 
-    state->api = ArenaPushStruct(&state->arena, Api);
-    state->renderer = ArenaPushStruct(&state->arena, Renderer);
+    state->api_data = ArenaPushStruct(&state->arena, ApiData);
+    state->renderer_data = ArenaPushStruct(&state->arena, RendererData);
     state->loopback_data = ArenaPushStruct(&state->arena, LoopbackData);
+    state->server_data = ArenaPushStruct(&state->arena, ServerData);
 
-    // Initialise parameters
+    // Initialise default parameters
     {
         state->parameters = ParameterCreate();
 
@@ -92,14 +103,15 @@ void StateInitialise() {
     }
 
     if (Deserialize()) {
-        if (!FileExists(state->music_fp)) {
+        if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
             strcpy(state->music_fp, "assets/monks.mp3");
         }
 
         state->music = LoadMusicStream(state->music_fp);
     }
 
-    if (state->screen_size.Width == 0.0f || state->screen_size.Height == 0.0f) {
+    if (state->screen_size.Width <= 50.0f ||
+        state->screen_size.Height <= 50.0f) {
         state->screen_size.Width = 1280;
         state->screen_size.Height = 720;
     }
@@ -124,25 +136,38 @@ void StateInitialise() {
                           state->filter_count,
                           ParameterGetValue(state->parameters, "velocity"));
 
-    RendererInitialise(state->renderer);
-
     if (IsMusicReady(state->music)) {
         PlayMusicStream(state->music);
         AttachAudioStreamProcessor(state->music.stream, FrameCallback);
     }
 
-    ApiCreate("lua/init.lua", state, state->api);
-
+    RendererInitialise(state->renderer_data);
+    ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
+    ServerInitialise(state->server_data, API_URI, &state->arena);
+
+    ServerGetAsync(state->server_data, "metrics/total-time", state,
+                   GetTotalTimeCallback, &state->arena);
 }
 
 void StateDestroy() {
+    F64 elapsed = GetTime();
+
+    ServerPostAsync(state->server_data, "add-metric",
+                    TextFormat("{\"time\": %f}", elapsed), NULL, NULL,
+                    &state->arena);
+
+    ServerWait(state->server_data);
+
     Serialize();
-    ApiDestroy(state->api);
+
+    ServerDestroy(state->server_data);
+
+    ApiDestroy(state->api_data);
 
     LoopbackDestroy(state->loopback_data);
 
-    RendererDestroy(state->renderer);
+    RendererDestroy(state->renderer_data);
 
     ParameterDestroy(state->parameters);
 
@@ -153,13 +178,13 @@ void StateDestroy() {
 }
 
 void StateUpdate() {
-    ApiUpdate(state->api, state);
+    ApiUpdate(state->api_data, state);
 
     SetFrequencyCount();
 
     switch (state->condition) {
     case StateCondition_NORMAL:
-        ApiPreUpdate(state->api, state);
+        ApiPreUpdate(state->api_data, state);
 
         if (!IsMusicReady(state->music)) {
             state->condition = StateCondition_LOAD;
@@ -273,7 +298,7 @@ void StateUpdate() {
 }
 
 void StateRender() {
-    Color clear = state->api->data.opt.bg_color;
+    Color clear = state->api_data->data.opt.bg_color;
 
     BeginDrawing();
     ClearBackground(clear);
@@ -284,7 +309,7 @@ void StateRender() {
             state->condition = StateCondition_LOAD;
             break;
         }
-        RendererSetRenderSize(state->renderer, state->screen_size);
+        RendererSetRenderSize(state->renderer_data, state->screen_size);
 
         Render();
         RenderUI();
@@ -302,13 +327,13 @@ void StateRender() {
                                HMM_V2(state->screen_size.Width / 2,
                                       state->screen_size.Height / 2));
 
-        RendererBeginRecording(state->renderer);
+        RendererBeginRecording(state->renderer_data);
         {
             ClearBackground(clear);
 
             Render();
         }
-        RendererEndRecording(state->renderer, state->ffmpeg);
+        RendererEndRecording(state->renderer_data, state->ffmpeg);
 
         break;
 
@@ -322,14 +347,15 @@ void StateRender() {
 
 static void WriteString(const char *str, FILE *fptr) {
     U32 len = strlen(str);
+
     fwrite(&len, sizeof(U32), 1, fptr);
-    fwrite(str, sizeof(char), len, fptr);
+    fwrite(str, sizeof(char), len + 1, fptr);
 }
 
 static void ReadString(char *str, FILE *fptr) {
     U32 len;
     fread(&len, sizeof(U32), 1, fptr);
-    fread(str, sizeof(char), len, fptr);
+    fread(str, sizeof(char), len + 1, fptr);
 }
 
 static void Serialize() {
@@ -340,21 +366,15 @@ static void Serialize() {
         fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
         fwrite(&state->master_volume, sizeof(F32), 1, fptr);
 
-        U32 smoothing = (U32)ParameterGetValue(state->parameters, "smoothing");
-        fwrite(&smoothing, sizeof(U32), 1, fptr);
-
         WriteString(state->music_fp, fptr);
 
         U32 param_count = ParameterCount(state->parameters);
         fwrite(&param_count, sizeof(U32), 1, fptr);
 
-        printf("param_count: %u\n", param_count);
-
-        U32 iter;
         Parameter *parameter;
-        while (ParameterIter(state->parameters, &iter, &parameter)) {
+        U32        _ = 0;
+        while (ParameterIter(state->parameters, &_, &parameter)) {
             WriteString(parameter->name, fptr);
-
             fwrite(&parameter->value, sizeof(F32), 1, fptr);
             fwrite(&parameter->min, sizeof(F32), 1, fptr);
             fwrite(&parameter->max, sizeof(F32), 1, fptr);
@@ -372,24 +392,19 @@ static bool Deserialize() {
             fread(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
             fread(&state->master_volume, sizeof(F32), 1, fptr);
 
-            U32 smoothing = 0;
-            fread(&smoothing, sizeof(U32), 1, fptr);
-            ParameterSetValue(state->parameters, "smoothing", smoothing);
-
             ReadString(state->music_fp, fptr);
 
             U32 param_count;
             fread(&param_count, sizeof(U32), 1, fptr);
 
-            printf("param_count: %u\n", param_count);
-
             for (U32 i = 0; i < param_count; ++i) {
                 char buf[256];
+                F32  value, min, max;
+
                 ReadString(buf, fptr);
 
                 char *name = ArenaPushString(&state->arena, buf);
 
-                F32 value, min, max;
                 fread(&value, sizeof(F32), 1, fptr);
                 fread(&min, sizeof(F32), 1, fptr);
                 fread(&max, sizeof(F32), 1, fptr);
@@ -408,9 +423,12 @@ static bool Deserialize() {
     return false;
 }
 
-static void RenderParameterSlider(const char *name, Rectangle rect,
-                                  const char *text_left, const char *text_right,
-                                  F32 min, F32 max) {
+static void RenderParameterSlider(const char *name,
+                                  Rectangle   rect,
+                                  const char *text_left,
+                                  const char *text_right,
+                                  F32         min,
+                                  F32         max) {
     F32 val = ParameterGetValue(state->parameters, name);
 
     GuiSlider(rect, text_left, text_right, &val, min, max);
@@ -427,7 +445,7 @@ static void RenderUI() {
         F32 top_padding = 10;
 
         Parameter *parameter;
-        U32 _, i = 0;
+        U32        _, i = 0;
         while (ParameterIter(state->parameters, &_, &parameter)) {
             RenderParameterSlider(
                 parameter->name,
@@ -443,6 +461,9 @@ static void RenderUI() {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
+
+        GuiLabel((Rectangle){100, 200, 100, 100},
+                 TextFormat("Total time: %3.f", state->total_time + GetTime()));
     } else {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
             state->ui = true;
@@ -451,26 +472,26 @@ static void RenderUI() {
 }
 
 static void Render() {
-    ApiPreRender(state->api, state);
+    ApiPreRender(state->api_data, state);
 
-    RendererDrawCircleFrequencies(state->renderer, state->frequency_count,
+    RendererDrawCircleFrequencies(state->renderer_data, state->frequency_count,
                                   state->frequencies,
-                                  state->renderer->default_color_func);
-    // RendererDrawWaveform(state->renderer, SAMPLE_COUNT, state->samples,
+                                  state->renderer_data->default_color_func);
+    // RendererDrawWaveform(state->renderer_data, SAMPLE_COUNT, state->samples,
     //                      ParameterGetValue(state->parameters, "wave_width"));
-    RendererDrawFrequencies(state->renderer, state->frequency_count,
+    RendererDrawFrequencies(state->renderer_data, state->frequency_count,
                             state->frequencies, true,
-                            state->renderer->default_color_func);
+                            state->renderer_data->default_color_func);
 
-    ApiRender(state->api, state);
+    ApiRender(state->api_data, state);
 }
 
 static void BeginRecording() {
     memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
     memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
 
-    HMM_Vec2 render_size = HMM_V2(state->renderer->screen.texture.width,
-                                  state->renderer->screen.texture.height);
+    HMM_Vec2 render_size = HMM_V2(state->renderer_data->screen.texture.width,
+                                  state->renderer_data->screen.texture.height);
 
     state->ffmpeg = FFMPEGStart(render_size, RENDER_FPS, state->music_fp);
     state->record_start = GetTime();
