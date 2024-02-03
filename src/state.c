@@ -52,6 +52,9 @@ FrameCallback(void *buffer_data, U32 n);
 static void
 PrintEllipses(U32 max, char buf[max + 1]);
 
+static void
+CreateFilter(F32 *filter, U32 filter_count);
+
 static StateMemory memory;
 static State      *state;
 
@@ -133,14 +136,14 @@ StateInitialise() {
 
     state->font = LoadStateFont("assets/fonts/helvetica.ttf");
 
-    GuiSetFont(FontClosestToSize(state->font, 10));
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 10);
-
-    for (I32 i = -2; i < 3; ++i) {
-        state->filter[i + 2] = expf(-i * i);
-    }
-
     state->filter_count = 5;
+    state->filter = ArenaPushArray(&state->arena, state->filter_count, F32);
+    CreateFilter(state->filter, state->filter_count);
+
+    GuiSetFont(FontClosestToSize(state->font, 20));
+    GuiSetStyle(DEFAULT, TEXT_SIZE,
+                FontClosestToSize(state->font, 20).baseSize);
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, 0xFFFFFFFF);
 
     SignalsProcessSamples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL,
                           &state->frequency_count, 0, 0, state->filter,
@@ -156,6 +159,21 @@ StateInitialise() {
     ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
+}
+
+static void
+CreateFilter(F32 *filter, U32 filter_count) {
+    I32 begin = (U32)floor((F32)filter_count / 2);
+
+    printf("begin: %d\n", begin);
+
+    I32 end = (U32)ceil((F32)filter_count / 2);
+
+    printf("end: %d\n", end);
+
+    for (I32 i = -begin; i < end; ++i) {
+        filter[i + begin] = expf(-i * i);
+    }
 }
 
 void
