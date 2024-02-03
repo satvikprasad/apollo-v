@@ -4,7 +4,6 @@
 #include "defines.h"
 #include "hashmap.h"
 
-typedef HM_Hashmap Animations;
 typedef struct Animation {
     F64   elapsed;
     F64   val;
@@ -17,18 +16,18 @@ typedef struct Animation {
     B8 finished;
 } Animation;
 
-Animations *
+HM_Hashmap *
 AnimationsCreate();
 
 void
-AnimationsUpdate(Animations *anims);
+AnimationsUpdate(HM_Hashmap *anims);
 
 #define AnimationsAdd(anims, name, user_data, update, arena)                   \
     AnimationsAdd_((anims), (name), (void *)(user_data), sizeof(*(user_data)), \
                    (update), (arena))
 
 Animation *
-AnimationsAdd_(Animations *anims,
+AnimationsAdd_(HM_Hashmap *anims,
                const char *name,
                void       *user_data,
                U32         user_data_size,
@@ -36,13 +35,13 @@ AnimationsAdd_(Animations *anims,
                MemoryArena *arena);
 
 void
-AnimationsDelete(Animations *anims, char *name);
+AnimationsDelete(HM_Hashmap *anims, char *name);
 
 F32
-AnimationsLoad(Animations *anims, const char *name);
+AnimationsLoad(HM_Hashmap *anims, const char *name);
 
 B8
-AnimationsExists(Animations *anims, const char *name);
+AnimationsExists(HM_Hashmap *anims, const char *name);
 
 void
-AnimationsApply(Animations *anims, char *name, F64 *val);
+AnimationsApply(HM_Hashmap *anims, char *name, F64 *val);
