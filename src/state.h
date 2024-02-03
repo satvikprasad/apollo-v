@@ -31,6 +31,9 @@ typedef enum StateCondition {
 typedef struct StateMemory {
     void *permanent_storage;
     U32   permanent_storage_size;
+
+    void *transient_storage;
+    U32   transient_storage_size;
 } StateMemory;
 
 #define FONT_SIZES_PER_FONT 12
@@ -85,8 +88,8 @@ typedef struct State {
         U32  wave_cursor;
     } record_data;
 
-    F32 filter[1 << 3];
-    U32 filter_count;
+    F32 *filter;
+    U32  filter_count;
 
     StateCondition condition;
 
