@@ -19,11 +19,13 @@ typedef struct ThreadData {
     void      *data;
 } ThreadData;
 
-unsigned long int
+DWORD
 ThreadFuncWrapper(void *user_data) {
     ThreadData *thread_data = (ThreadData *)user_data;
 
     thread_data->func(thread_data->data);
+
+    free(thread_data);
     return 0;
 }
 
@@ -39,5 +41,7 @@ ThreadCreate(Thread *thread, ThreadFunc thread_func, void *data) {
 
 void
 ThreadJoin(Thread *thread) {
-    WaitForSingleObject(thread->handle, INFINITE);
+    if (thread->handle) {
+        WaitForSingleObject(thread->handle, INFINITE);
+    }
 }
