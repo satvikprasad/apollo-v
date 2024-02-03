@@ -35,6 +35,15 @@ static Color
 PopColor(lua_State *L);
 
 static void
+PushColor(lua_State *L, Color c);
+
+static HMM_Vec2
+PopVec2(lua_State *L);
+
+static void
+PushVec2(lua_State *L, HMM_Vec2 vec);
+
+static void
 PushApi(ApiData *api);
 
 static ApiInterface
@@ -43,8 +52,14 @@ PopApi(ApiData *api);
 static int
 RegisterCallback(lua_State *L);
 
-static void
-CallCallback(lua_State *L, int *callback, U32 args);
+#define CallCallback(L, callback, args)                                        \
+    if (!CallCallback_((L), (callback), (args))) {                             \
+        printf("Error calling callback in %s: %s\n", #callback,                \
+               lua_tostring(L, -1));                                           \
+    }
+
+static B8
+CallCallback_(lua_State *L, int *callback, U32 args);
 
 static void
 FreeCallback(lua_State *L, int *callback);
@@ -76,7 +91,8 @@ DumpStack(lua_State *L) {
 
 #define X(func, name) static int func(lua_State *L);
 API_METHODS
-API_METHODS_UNDER_ANIMATION
+API_METHODS_ANIMATION
+API_METHODS_RENDERER
 #undef X
 
 static void
@@ -241,24 +257,7 @@ PushApi(ApiData *api) {
         lua_newtable(api->lua);
         {
             lua_pushstring(api->lua, "bg_color");
-            lua_newtable(api->lua);
-            {
-                lua_pushnumber(api->lua, 1);
-                lua_pushnumber(api->lua, 0);
-                lua_settable(api->lua, -3);
-
-                lua_pushnumber(api->lua, 2);
-                lua_pushnumber(api->lua, 0);
-                lua_settable(api->lua, -3);
-
-                lua_pushnumber(api->lua, 3);
-                lua_pushnumber(api->lua, 0);
-                lua_settable(api->lua, -3);
-
-                lua_pushnumber(api->lua, 4);
-                lua_pushnumber(api->lua, 0);
-                lua_settable(api->lua, -3);
-            }
+            PushColor(api->lua, api->data.opt.bg_color);
             lua_settable(api->lua, -3);
         }
         lua_settable(api->lua, -3);
@@ -274,7 +273,12 @@ PushApi(ApiData *api) {
 
             lua_pushstring(api->lua, "animation");
             lua_newtable(api->lua);
-            API_METHODS_UNDER_ANIMATION;
+            API_METHODS_ANIMATION;
+            lua_settable(api->lua, -3);
+
+            lua_pushstring(api->lua, "renderer");
+            lua_newtable(api->lua);
+            API_METHODS_RENDERER
             lua_settable(api->lua, -3);
 #undef X
         }
@@ -311,7 +315,7 @@ PopColor(lua_State *L) {
 
     lua_geti(L, -1, 4);
     c.a = lua_tonumber(L, -1);
-    lua_pop(L, 1);
+    lua_pop(L, 2);
 
     return c;
 }
@@ -349,8 +353,7 @@ PopApi(ApiData *api) {
         {
             lua_pushstring(api->lua, "bg_color");
             lua_gettable(api->lua, -2);
-            { data.opt.bg_color = PopColor(api->lua); }
-            lua_pop(api->lua, 1);
+            data.opt.bg_color = PopColor(api->lua);
         }
         lua_pop(api->lua, 1);
     }
@@ -364,8 +367,8 @@ RegisterCallback(lua_State *L) {
     return luaL_ref(L, LUA_REGISTRYINDEX);
 }
 
-void
-CallCallback(lua_State *L, ApiCallback *callback, U32 args) {
+B8
+CallCallback_(lua_State *L, ApiCallback *callback, U32 args) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, *callback);
 
     lua_pushvalue(L, -1);
@@ -376,12 +379,14 @@ CallCallback(lua_State *L, ApiCallback *callback, U32 args) {
     }
 
     if (lua_pcall(L, args, 0, 0) != 0) {
-        printf("Failed to call callback: %s\n", lua_tostring(L, -1));
+        return false;
     }
 
     *callback = luaL_ref(L, LUA_REGISTRYINDEX);
 
     lua_pop(L, args);
+
+    return true;
 }
 
 void
@@ -561,16 +566,7 @@ L_SmoothSignal(lua_State *L) {
 
 static int
 L_GetScreenSize(lua_State *L) {
-    lua_newtable(L);
-    {
-        lua_pushnumber(L, 1);
-        lua_pushnumber(L, p_state->screen_size.X);
-        lua_settable(L, -3);
-
-        lua_pushnumber(L, 2);
-        lua_pushnumber(L, p_state->screen_size.Y);
-        lua_settable(L, -3);
-    }
+    PushVec2(L, p_state->screen_size);
 
     return 1;
 }
@@ -597,9 +593,23 @@ PopVec2(lua_State *L) {
 
     out = HMM_V2(lua_tonumber(L, -2), lua_tonumber(L, -1));
 
-    lua_pop(L, 2);
+    lua_pop(L, 3);
 
     return out;
+}
+
+static void
+PushVec2(lua_State *L, HMM_Vec2 vec) {
+    lua_newtable(L);
+    {
+        lua_pushstring(L, "x");
+        lua_pushnumber(L, vec.X);
+        lua_settable(L, -3);
+
+        lua_pushstring(L, "y");
+        lua_pushnumber(L, vec.Y);
+        lua_settable(L, -3);
+    }
 }
 
 // TODO(satvik): Make this user-proof
@@ -624,8 +634,6 @@ L_DrawLinedPoly(lua_State *L) {
 
     Color color = PopColor(L);
 
-    lua_pop(L, 1);
-
     // Indices are at the top of the stack
     HMM_Vec2 indices[index_count];
     for (U32 i = 0; i < index_count; ++i) {
@@ -638,7 +646,6 @@ L_DrawLinedPoly(lua_State *L) {
         }
 
         indices[i] = PopVec2(L);
-        lua_pop(L, 1);
     }
     lua_pop(L, 1);
 
@@ -653,7 +660,6 @@ L_DrawLinedPoly(lua_State *L) {
             return 0;
         }
         vertices[i] = PopVec2(L);
-        lua_pop(L, 1);
     }
 
     RendererDrawLinedPoly(p_state->renderer_data, vertices, vertex_count,

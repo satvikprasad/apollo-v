@@ -33,7 +33,7 @@ AnimationsFree(void *item) {
     free(anim);
 }
 
-Animations *
+HM_Hashmap *
 AnimationsCreate() {
     return hashmap_new(sizeof(Animation), 0, 0, 0, AnimationsHash,
                        AnimationsCompare, AnimationsFree, NULL);
@@ -52,7 +52,7 @@ AnimationsCreate() {
  * @return Animation* The animation.
  */
 Animation *
-AnimationsAdd_(Animations *anims,
+AnimationsAdd_(HM_Hashmap *anims,
                const char *name,
                void       *user_data,
                U32         user_data_size,
@@ -76,7 +76,7 @@ AnimationsAdd_(Animations *anims,
 }
 
 void
-AnimationsUpdate(Animations *anims) {
+AnimationsUpdate(HM_Hashmap *anims) {
     U32        i;
     Animation *anim;
 
@@ -93,7 +93,7 @@ AnimationsUpdate(Animations *anims) {
 }
 
 B8
-AnimationsExists(Animations *anims, const char *name) {
+AnimationsExists(HM_Hashmap *anims, const char *name) {
     Animation *anim =
         (Animation *)hashmap_get(anims, &(Animation){.name = (char *)name});
 
@@ -101,7 +101,7 @@ AnimationsExists(Animations *anims, const char *name) {
 }
 
 F32
-AnimationsLoad(Animations *anims, const char *name) {
+AnimationsLoad(HM_Hashmap *anims, const char *name) {
     Animation *anim =
         (Animation *)hashmap_get(anims, &(Animation){.name = (char *)name});
 
@@ -113,12 +113,12 @@ AnimationsLoad(Animations *anims, const char *name) {
 }
 
 void
-AnimationsDelete(Animations *anims, char *name) {
+AnimationsDelete(HM_Hashmap *anims, char *name) {
     hashmap_delete(anims, &(Animation){.name = name});
 }
 
 void
-AnimationsApply(Animations *anims, char *name, F64 *val) {
+AnimationsApply(HM_Hashmap *anims, char *name, F64 *val) {
     if (AnimationsExists(anims, name)) {
         *val = AnimationsLoad(anims, name);
     }

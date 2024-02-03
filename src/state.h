@@ -76,8 +76,6 @@ typedef struct State {
 
     F32 dt;
 
-    Animations *animations;
-
     F32 record_start;
 
     I32 ffmpeg;
@@ -93,7 +91,9 @@ typedef struct State {
 
     StateCondition condition;
 
-    Parameters *parameters;
+    HM_Hashmap *parameters;
+    HM_Hashmap *animations;
+    HM_Hashmap *procedures;
 
     B8 ui;
     B8 loopback;
