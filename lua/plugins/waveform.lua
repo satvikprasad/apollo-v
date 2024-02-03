@@ -2,7 +2,7 @@ A = lynx.api
 
 local vertices = {}
 local indices = {}
-local screen_size
+local screen_size = {}
 
 A.animation.add("test", function(animation, _)
     local elapsed = A.animation.get_elapsed(animation)
@@ -21,10 +21,10 @@ A.on_update(function()
 
     local samples = A.get_samples()
 
-    for i = 1, screen_size[1] do
+    for i = 1, screen_size.x do
         local y = i - 1
 
-        vertices[i] = {y*A.get_param("wave_width"), samples[#samples - i + 1]*screen_size[2]/2 + screen_size[2]/2}
+        vertices[i] = {y*A.get_param("wave_width"), samples[#samples - i + 1]*screen_size.y/2 + screen_size.y/2}
         indices[i] = {y, samples[#samples - i + 1]}
     end
 end)
@@ -33,11 +33,11 @@ end)
 A.pre_render(function()
     A.bind_shader(0, "assets/shaders/red.fs")
 
-    A.draw_lined_poly(vertices, indices, {255, 255, 255, 255})
+    A.renderer.draw_lined_poly(vertices, indices, {255, 255, 255, 255})
 
     A.unbind_shader()
 
-    A.draw_centered_text("Waveform", {255, 255*A.animation.load("test", 0.5)}, A.get_param("font_size"))
+    A.renderer.draw_centered_text("Waveform", {255, 255*A.animation.load("test", 0.5)}, A.get_param("font_size"))
 end)
 
 function table.copy(t)

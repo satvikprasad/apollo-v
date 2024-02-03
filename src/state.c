@@ -17,6 +17,7 @@
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
+#include "procedures.h"
 #include "renderer.h"
 #include "server.h"
 #include "signals.h"
@@ -54,6 +55,12 @@ PrintEllipses(U32 max, char buf[max + 1]);
 
 static void
 CreateFilter(F32 *filter, U32 filter_count);
+
+static void
+CircleFrequenciesProc(void *user_data);
+
+static void
+NormalFrequenciesProc(void *user_data);
 
 static StateMemory memory;
 static State      *state;
@@ -114,7 +121,16 @@ StateInitialise() {
     }
 
     // Initialise animations
-    { state->animations = AnimationsCreate(); }
+    state->animations = AnimationsCreate();
+
+    {
+        state->procedures = ProcedureCreate();
+
+        ProcedureAdd(state->procedures, "circle_frequencies", NULL,
+                     CircleFrequenciesProc, &state->arena);
+        ProcedureAdd(state->procedures, "normal_frequencies", NULL,
+                     NormalFrequenciesProc, &state->arena);
+    }
 
     if (Deserialize()) {
         if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
@@ -566,6 +582,20 @@ RenderUI() {
             ++i;
         }
 
+        printf("count: %d", hashmap_count(state->procedures));
+
+        Procedure *proc;
+        _ = 0;
+        i = 0;
+        while (ProcedureIter(state->procedures, &_, &proc)) {
+            if (GuiToggle((Rectangle){state->screen_size.Width - 250,
+                                      i * 30 + top_padding, 200, 20},
+                          TextFormat("%s", proc->name), &proc->active)) {
+                ProcedureToggle(state->procedures, proc->name);
+            }
+            ++i;
+        }
+
         if (GuiButton(
                 (Rectangle){state->screen_size.Width - 35, top_padding, 25, 25},
                 "#11#")) {
@@ -580,19 +610,25 @@ RenderUI() {
 }
 
 static void
-Render() {
-    ApiPreRender(state->api_data, state);
-
+CircleFrequenciesProc(void *user_data) {
     RendererDrawCircleFrequencies(state->renderer_data, state->frequency_count,
                                   state->frequencies,
                                   state->renderer_data->default_color_func);
-    // RendererDrawWaveform(state->renderer_data, SAMPLE_COUNT,
-    // state->samples,
-    //                      ParameterGetValue(state->parameters,
-    //                      "wave_width"));
+}
+
+static void
+NormalFrequenciesProc(void *user_data) {
     RendererDrawFrequencies(state->renderer_data, state->frequency_count,
                             state->frequencies, true,
                             state->renderer_data->default_color_func);
+}
+
+static void
+Render() {
+    ApiPreRender(state->api_data, state);
+
+    ProcedureCall(state->procedures, "circle_frequencies");
+    ProcedureCall(state->procedures, "normal_frequencies");
 
     ApiRender(state->api_data, state);
 }
