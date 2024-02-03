@@ -21,7 +21,7 @@ make PLAT=mingw all
 
 cd ..\..\
 
-rm lib\lua-5.4.6.tar.gz 
+del lib\lua-5.4.6.tar.gz 
 
 REM LibCURL
 cd lib
@@ -29,12 +29,13 @@ cd lib
 curl -L -R -O https://curl.se/download/curl-8.5.0.tar.gz
 tar zxf curl-8.5.0.tar.gz
 
-rm curl-8.5.0.tar.gz
+del curl-8.5.0.tar.gz
 
-cd curl-8.5.0
+cd curl-8.5.0\builds\libcurl-vc-x64-release-dll-ipv6-sspi-schannel\bin\
 
-sh configure --with-openssl --disable-shared
-make
-make install
+gendef libcurl.dll
+dlltool --as-flags=--64 -m i386:x86-64 -k --output-lib libcurl.a --input-def libcurl.def
 
-cd ..\..\
+cd ..\..\..\..\..\
+
+copy .\lib\curl-8.5.0\builds\libcurl-vc-x64-release-dll-ipv6-sspi-schannel\bin\libcurl.a .\lib\curl-8.5.0\lib\
