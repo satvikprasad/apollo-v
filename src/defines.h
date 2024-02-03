@@ -78,6 +78,7 @@ typedef double F64;
 typedef struct tagMSG *LPMSG;
 
 #include <windows.h>
+#include <winsock.h>
 
 // Type required by some unused function...
 typedef struct tagBITMAPINFOHEADER {
