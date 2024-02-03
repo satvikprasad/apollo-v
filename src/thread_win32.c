@@ -19,7 +19,7 @@ typedef struct ThreadData {
     void      *data;
 } ThreadData;
 
-U64
+U32
 ThreadFuncWrapper(void *user_data) {
     ThreadData *thread_data = (ThreadData *)user_data;
 
