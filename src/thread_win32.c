@@ -19,13 +19,11 @@ typedef struct ThreadData {
     void      *data;
 } ThreadData;
 
-U32
+unsigned long int
 ThreadFuncWrapper(void *user_data) {
     ThreadData *thread_data = (ThreadData *)user_data;
 
     thread_data->func(thread_data->data);
-
-    free(thread_data);
     return 0;
 }
 
