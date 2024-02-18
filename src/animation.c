@@ -3,6 +3,7 @@
 #include "hashmap.h"
 #include "lmath.h"
 #include "raylib.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -104,6 +105,18 @@ F32
 AnimationsLoad(HM_Hashmap *anims, const char *name) {
     Animation *anim =
         (Animation *)hashmap_get(anims, &(Animation){.name = (char *)name});
+
+    if (anim) {
+        return anim->val;
+    }
+
+    return 1.0f;
+}
+
+F32
+AnimationsLoadEx(HM_Hashmap *anims, Animation *anim_in) {
+    Animation *anim = (Animation *)hashmap_get(
+        anims, &(Animation){.name = (char *)anim_in->name});
 
     if (anim) {
         return anim->val;

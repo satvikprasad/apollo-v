@@ -7,7 +7,7 @@
 typedef void (*ProcedureCallback)(void *data);
 
 typedef struct Procedure {
-    const char       *name;
+    char             *name;
     ProcedureCallback callback;
     B8                active;
     void             *user_data;

@@ -106,10 +106,6 @@ StateInitialise() {
     {
         state->parameters = ParameterCreate();
 
-        ParameterSet(state->parameters, &(Parameter){.name = "wave_width",
-                                                     .value = 10.f,
-                                                     .min = 1,
-                                                     .max = 100});
         ParameterSet(state->parameters, &(Parameter){.name = "smoothing",
                                                      .value = 5.0f,
                                                      .min = 1,
@@ -131,6 +127,8 @@ StateInitialise() {
         ProcedureAdd(state->procedures, "normal_frequencies", NULL,
                      NormalFrequenciesProc, &state->arena);
     }
+
+    ApiInitialise("lua/init.lua", state, state->api_data);
 
     if (Deserialize()) {
         if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
@@ -172,7 +170,6 @@ StateInitialise() {
     }
 
     RendererInitialise(state->renderer_data);
-    ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
 }

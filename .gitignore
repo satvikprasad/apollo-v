@@ -5,3 +5,4 @@ compile_flags.txt
 lib/lua-5.4.6/
 lib/curl-8.5.0/
 .env
+*.zip

@@ -1,11 +1,13 @@
 #include "api.h"
 
 #include "animation.h"
+#include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
 #include "hashmap.h"
 #include "lmath.h"
 #include "lua.h"
+#include "procedures.h"
 #include "renderer.h"
 #include "signals.h"
 #include "state.h"
@@ -17,6 +19,7 @@
 #include <math.h>
 #include <raylib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -93,6 +96,8 @@ DumpStack(lua_State *L) {
 API_METHODS
 API_METHODS_ANIMATION
 API_METHODS_RENDERER
+API_METHODS_PROCS
+API_METHODS_PARAMS
 #undef X
 
 static void
@@ -271,15 +276,16 @@ PushApi(ApiData *api) {
     lua_settable(api->lua, -3);
             API_METHODS
 
-            lua_pushstring(api->lua, "animation");
-            lua_newtable(api->lua);
-            API_METHODS_ANIMATION;
-            lua_settable(api->lua, -3);
+#define NSPACE(nspace, methods)                                                \
+    lua_pushstring(api->lua, #nspace);                                         \
+    lua_newtable(api->lua);                                                    \
+    methods lua_settable(api->lua, -3);
+            NSPACE(animation, API_METHODS_ANIMATION)
+            NSPACE(renderer, API_METHODS_RENDERER)
+            NSPACE(proc, API_METHODS_PROCS)
+            NSPACE(param, API_METHODS_PARAMS)
+#undef NSPACE
 
-            lua_pushstring(api->lua, "renderer");
-            lua_newtable(api->lua);
-            API_METHODS_RENDERER
-            lua_settable(api->lua, -3);
 #undef X
         }
         lua_settable(api->lua, -3);
@@ -419,8 +425,10 @@ L_AddParameter(lua_State *L) {
     F32         min = lua_tonumber(L, 3);
     F32         max = lua_tonumber(L, 4);
 
+    char *mem = ArenaPushString(&p_state->arena, name);
+
     Parameter param = {
-        .name = name,
+        .name = mem,
         .value = value,
         .min = min,
         .max = max,
@@ -428,7 +436,9 @@ L_AddParameter(lua_State *L) {
 
     ParameterSet(p_state->parameters, &param);
 
-    return 0;
+    lua_pushlightuserdata(L, ParameterGet(p_state->parameters, name));
+
+    return 1;
 }
 
 static int
@@ -446,18 +456,18 @@ L_SetParameter(lua_State *L) {
 
 static int
 L_GetParameter(lua_State *L) {
-    CheckArgument(L, LUA_TSTRING, 1, get_param);
+    CheckArgument(L, LUA_TLIGHTUSERDATA, 1, get_param);
 
-    const char *name = lua_tostring(L, 1);
+    Parameter *param = lua_touserdata(L, 1);
 
-    lua_pushnumber(L, ParameterGetValue(p_state->parameters, name));
+    lua_pushnumber(L, ParameterGetValue(p_state->parameters, param->name));
 
     return 1;
 }
 
 static int
-L_OnUpdate(lua_State *L) {
-    CheckArgument(L, LUA_TFUNCTION, 1, on_update);
+L_PreUpdate(lua_State *L) {
+    CheckArgument(L, LUA_TFUNCTION, 1, pre_update);
 
     p_state->api_data->pre_update[p_state->api_data->pre_update_count++] =
         RegisterCallback(L);
@@ -466,8 +476,8 @@ L_OnUpdate(lua_State *L) {
 }
 
 static int
-L_PreUpdate(lua_State *L) {
-    CheckArgument(L, LUA_TFUNCTION, 1, pre_update);
+L_OnUpdate(lua_State *L) {
+    CheckArgument(L, LUA_TFUNCTION, 1, on_update);
 
     p_state->api_data->on_update[p_state->api_data->on_update_count++] =
         RegisterCallback(L);
@@ -814,14 +824,14 @@ L_AnimationSetVal(lua_State *L) {
 
 static int
 L_AnimationLoad(lua_State *L) {
-    CheckArgument(L, LUA_TSTRING, 1, animation_load);
+    CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_load);
     CheckArgument(L, LUA_TNUMBER, 2, animation_load);
 
-    const char *name = lua_tostring(L, 1);
-    F32         def = lua_tonumber(L, 2);
+    Animation *anim = lua_touserdata(L, 1);
+    F32        def = lua_tonumber(L, 2);
 
-    if (AnimationsExists(p_state->animations, name)) {
-        lua_pushnumber(L, AnimationsLoad(p_state->animations, name));
+    if (AnimationsExists(p_state->animations, anim->name)) {
+        lua_pushnumber(L, AnimationsLoad(p_state->animations, anim->name));
     } else {
         lua_pushnumber(L, def);
     }
@@ -860,9 +870,58 @@ L_AddAnimation(lua_State *L) {
         .lua = L,
     };
 
-    AnimationsAdd(p_state->animations, name, &data, ApiAnimationUpdate,
-                  &p_state->arena);
+    Animation *anim = AnimationsAdd(p_state->animations, name, &data,
+                                    ApiAnimationUpdate, &p_state->arena);
+
+    lua_pushlightuserdata(L, anim);
+
+    return 1;
+}
+
+typedef struct ProcedureCallbackData {
+    ApiCallback callback;
+    lua_State  *L;
+} ProcedureCallbackData;
+
+static void
+ProcedureCallbackWrapper(void *data) {
+    ProcedureCallbackData *callback_data = (ProcedureCallbackData *)data;
+
+    CallCallback(callback_data->L, &callback_data->callback, 0);
+}
+
+static int
+L_AddProcedure(lua_State *L) {
+    CheckArgument(L, LUA_TSTRING, 1, add_procedure);
+    CheckArgument(L, LUA_TFUNCTION, 2, add_procedure);
+
+    const char *name = lua_tostring(L, 1);
+
+    lua_pushvalue(L, 2);
+
+    CheckArgument(L, LUA_TFUNCTION, -1, add_procedure);
+    ApiCallback callback = RegisterCallback(L);
+
+    ProcedureCallbackData data = {
+        .callback = callback,
+        .L = L,
+    };
+
+    Procedure *proc = ProcedureAdd(p_state->procedures, name, &data,
+                                   ProcedureCallbackWrapper, &p_state->arena);
+
+    lua_pushlightuserdata(L, proc);
+
+    return 1;
+}
+
+static int
+L_CallProcedure(lua_State *L) {
+    CheckArgument(L, LUA_TLIGHTUSERDATA, 1, call_procedure);
+
+    const char *name = ((Procedure *)lua_touserdata(L, 1))->name;
+
+    ProcedureCall(p_state->procedures, name);
 
     return 0;
 }
-

@@ -46,7 +46,11 @@ ParameterGetValue(HM_Hashmap *params, const char *name) {
     Parameter *param =
         ((Parameter *)hashmap_get(params, &(Parameter){.name = name}));
 
-    return param->value;
+    if (param) {
+        return param->value;
+    }
+
+    return 0.0f;
 }
 
 void
@@ -58,10 +62,12 @@ void
 ParameterSetValue(HM_Hashmap *params, const char *name, F32 value) {
     Parameter *prev = ParameterGet(params, name);
 
-    ParameterSet(params, &(Parameter){.name = name,
-                                      .value = value,
-                                      .min = prev->min,
-                                      .max = prev->max});
+    if (prev) {
+        ParameterSet(params, &(Parameter){.name = name,
+                                          .value = value,
+                                          .min = prev->min,
+                                          .max = prev->max});
+    }
 }
 
 U32

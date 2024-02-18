@@ -13,15 +13,21 @@
     X(L_AnimationSetFinished, set_finished)                                    \
     X(L_AnimationLoad, load)
 
+#define API_METHODS_PROCS                                                      \
+    X(L_AddProcedure, add)                                                     \
+    X(L_CallProcedure, call)
+
 #define API_METHODS_RENDERER                                                   \
     X(L_DrawLinedPoly, draw_lined_poly)                                        \
     X(L_DrawCenteredText, draw_centered_text)
 
+#define API_METHODS_PARAMS                                                     \
+    X(L_AddParameter, add)                                                     \
+    X(L_GetParameter, get)                                                     \
+    X(L_SetParameter, set)
+
 #define API_METHODS                                                            \
     X(L_GetMusicTimePlayed, get_music_time_played)                             \
-    X(L_AddParameter, add_param)                                               \
-    X(L_GetParameter, get_param)                                               \
-    X(L_SetParameter, set_param)                                               \
     X(L_OnUpdate, on_update)                                                   \
     X(L_OnRender, on_render)                                                   \
     X(L_PreUpdate, pre_update)                                                 \

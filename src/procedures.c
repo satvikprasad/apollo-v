@@ -1,6 +1,7 @@
 #include "procedures.h"
 #include "arena.h"
 #include <stdbool.h>
+#include <stdlib.h>
 #include <string.h>
 
 static U64
@@ -20,7 +21,13 @@ ProcedureCompare(const void *a, const void *b, void *udata) {
 }
 
 static void
-ProcedureFree(void *item) {}
+ProcedureFree(void *item) {
+    Procedure *proc = (Procedure *)item;
+
+    if (proc->user_data) {
+        free(proc->user_data);
+    }
+}
 
 HM_Hashmap *
 ProcedureCreate() {
@@ -37,9 +44,15 @@ ProcedureAdd_(HM_Hashmap       *procs,
               MemoryArena      *arena) {
     Procedure *procedure = ArenaPushStruct(arena, Procedure);
     procedure->callback = proc;
+
     procedure->name = ArenaPushString(arena, name);
+
     procedure->active = true;
-    procedure->user_data = user_data;
+
+    if (user_data) {
+        procedure->user_data = malloc(user_data_size);
+        memcpy(procedure->user_data, user_data, user_data_size);
+    }
 
     hashmap_set(procs, procedure);
 
@@ -49,7 +62,7 @@ ProcedureAdd_(HM_Hashmap       *procs,
 void
 ProcedureCall(HM_Hashmap *procs, const char *name) {
     Procedure *proc =
-        (Procedure *)hashmap_get(procs, &(Procedure){.name = name});
+        (Procedure *)hashmap_get(procs, &(Procedure){.name = (char *)name});
 
     if (proc) {
         if (proc->active) {
@@ -72,7 +85,7 @@ ProcedureCallAll(HM_Hashmap *procs) {
 void
 ProcedureToggle(HM_Hashmap *procs, const char *name) {
     Procedure *proc =
-        (Procedure *)hashmap_get(procs, &(Procedure){.name = name});
+        (Procedure *)hashmap_get(procs, &(Procedure){.name = (char *)name});
 
     if (proc) {
         proc->active = !proc->active;

@@ -60,22 +60,20 @@ typedef struct State {
     LoopbackData *loopback_data;
     ServerData   *server_data;
 
+    Thread *recording_thread;
+
     Music music;
     char  music_fp[256];
 
     StateFont font;
 
-    HMM_Vec2 screen_size;
-    HMM_Vec2 window_position;
-
-    F32 master_volume;
-
     F32 samples[SAMPLE_COUNT];
+
     F32 frequencies[FREQUENCY_COUNT];
     U32 frequency_count;
 
+    F32 master_volume;
     F32 dt;
-
     F32 record_start;
 
     I32 ffmpeg;
@@ -97,10 +95,10 @@ typedef struct State {
 
     B8 ui;
     B8 loopback;
-
     B8 should_close;
 
-    Thread *recording_thread;
+    HMM_Vec2 screen_size;
+    HMM_Vec2 window_position;
 } State;
 
 void
