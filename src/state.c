@@ -87,6 +87,7 @@ UnloadStateFont(StateFont font) {
 
 void
 StateInitialise() {
+    // Initialising memory
     memory.permanent_storage_size = 1024 * 1024 * 1024;
     memory.permanent_storage =
         PermanentStorageInit(memory.permanent_storage_size);
@@ -178,11 +179,7 @@ static void
 CreateFilter(F32 *filter, U32 filter_count) {
     I32 begin = (U32)floor((F32)filter_count / 2);
 
-    printf("begin: %d\n", begin);
-
     I32 end = (U32)ceil((F32)filter_count / 2);
-
-    printf("end: %d\n", end);
 
     for (I32 i = -begin; i < end; ++i) {
         filter[i + begin] = expf(-i * i);

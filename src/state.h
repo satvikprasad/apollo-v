@@ -2,14 +2,12 @@
 
 #include <complex.h>
 
-#include "animation.h"
 #include "api.h"
 #include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
 #include "hashmap.h"
 #include "loopback.h"
-#include "parameter.h"
 #include "raylib.h"
 #include "renderer.h"
 #include "server.h"

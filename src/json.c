@@ -6,7 +6,8 @@
 #include "defines.h"
 #include "json.h"
 
-static B8 JsonEq(const char *json, jsmntok_t *tok, const char *s) {
+static B8
+JsonEq(const char *json, jsmntok_t *tok, const char *s) {
     if (tok->type == JSMN_STRING && (int)strlen(s) == tok->end - tok->start &&
         strncmp(json + tok->start, s, tok->end - tok->start) == 0) {
         return true;
@@ -14,9 +15,10 @@ static B8 JsonEq(const char *json, jsmntok_t *tok, const char *s) {
     return false;
 }
 
-void JsonObjectGetKey(const char *json, const char *key, char *value) {
+void
+JsonObjectGetKey(const char *json, const char *key, char *value) {
     jsmn_parser parser;
-    jsmntok_t tokens[128];
+    jsmntok_t   tokens[128];
 
     jsmn_init(&parser);
     I32 r = jsmn_parse(&parser, json, strlen(json), tokens, 128);
