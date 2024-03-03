@@ -100,7 +100,7 @@ StateInitialise() {
 
     state->api_data = ArenaPushStruct(&state->arena, ApiData);
     state->renderer_data = ArenaPushStruct(&state->arena, RendererData);
-    state->loopback_data = ArenaPushStruct(&state->arena, LoopbackData);
+    state->loopback_data = ArenaPushStruct_(&state->arena, LoopbackDataSize());
     state->server_data = ArenaPushStruct(&state->arena, ServerData);
 
     // Initialise default parameters
@@ -163,7 +163,8 @@ StateInitialise() {
     SignalsProcessSamples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL,
                           &state->frequency_count, 0, 0, state->filter,
                           state->filter_count,
-                          ParameterGetValue(state->parameters, "velocity"));
+                          ParameterGetValue(state->parameters, "velocity"),
+                          state->zero_frequencies);
 
     if (IsMusicReady(state->music)) {
         PlayMusicStream(state->music);
@@ -355,7 +356,8 @@ StateUpdate() {
             state->frequencies, &state->frequency_count, state->dt,
             (U32)ParameterGetValue(state->parameters, "smoothing"),
             state->filter, state->filter_count,
-            ParameterGetValue(state->parameters, "velocity"));
+            ParameterGetValue(state->parameters, "velocity"),
+            state->zero_frequencies);
 
     } break;
 
@@ -674,7 +676,8 @@ UpdateRecording() {
         LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies,
         &state->frequency_count, 1 / (F32)RENDER_FPS,
         (U32)ParameterGetValue(state->parameters, "smoothing"), state->filter,
-        state->filter_count, ParameterGetValue(state->parameters, "velocity"));
+        state->filter_count, ParameterGetValue(state->parameters, "velocity"),
+        state->zero_frequencies);
 }
 
 static void
@@ -683,7 +686,8 @@ SetFrequencyCount() {
     SignalsProcessSamples(
         LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0,
         (U32)ParameterGetValue(state->parameters, "smoothing"), state->filter,
-        state->filter_count, ParameterGetValue(state->parameters, "velocity"));
+        state->filter_count, ParameterGetValue(state->parameters, "velocity"),
+        state->zero_frequencies);
 
     if (freq_count != state->frequency_count) {
         if (freq_count > state->frequency_count) {

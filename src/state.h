@@ -95,6 +95,8 @@ typedef struct State {
     B8 loopback;
     B8 should_close;
 
+    B8 zero_frequencies;
+
     HMM_Vec2 screen_size;
     HMM_Vec2 window_position;
 } State;
