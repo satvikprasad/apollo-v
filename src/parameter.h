@@ -3,20 +3,26 @@
 #include "defines.h"
 #include "hashmap.h"
 
-typedef HM_Hashmap Parameters;
-
 typedef struct Parameter {
     const char *name;
-    F32 value, min, max;
+    F32         value, min, max;
 } Parameter;
 
-HM_Hashmap *ParameterCreate();
-void ParameterDestroy(Parameters *params);
-B8 ParameterIter(Parameters *params, U32 *iter, Parameter **parameter);
+HM_Hashmap *
+ParameterCreate();
+void
+ParameterDestroy(HM_Hashmap *params);
+B8
+ParameterIter(HM_Hashmap *params, U32 *iter, Parameter **parameter);
 
-Parameter *ParameterGet(Parameters *params, const char *name);
-F32 ParameterGetValue(Parameters *params, const char *name);
+Parameter *
+ParameterGet(HM_Hashmap *params, const char *name);
+F32
+ParameterGetValue(HM_Hashmap *params, const char *name);
 
-void ParameterSet(Parameters *params, Parameter *param);
-void ParameterSetValue(Parameters *params, const char *name, F32 value);
-U32 ParameterCount(Parameters *params);
+void
+ParameterSet(HM_Hashmap *params, Parameter *param);
+void
+ParameterSetValue(HM_Hashmap *params, const char *name, F32 value);
+U32
+ParameterCount(HM_Hashmap *params);

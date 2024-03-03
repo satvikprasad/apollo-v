@@ -6,8 +6,8 @@
 #include "arena.h"
 #include "defines.h"
 #include "handmademath.h"
+#include "hashmap.h"
 #include "loopback.h"
-#include "parameter.h"
 #include "raylib.h"
 #include "renderer.h"
 #include "server.h"
@@ -19,6 +19,7 @@ typedef enum StateCondition {
     StateCondition_ERROR,
     StateCondition_LOAD,
     StateCondition_RECORDING,
+    StateCondition_EXITING,
 } StateCondition;
 
 #define MAX_PARAM_COUNT 100
@@ -28,6 +29,9 @@ typedef enum StateCondition {
 typedef struct StateMemory {
     void *permanent_storage;
     U32   permanent_storage_size;
+
+    void *transient_storage;
+    U32   transient_storage_size;
 } StateMemory;
 
 #define FONT_SIZES_PER_FONT 12
@@ -45,6 +49,7 @@ typedef struct StateFont {
     Font fonts[FONT_SIZES_PER_FONT];
 } StateFont;
 
+#define MAX_ANIMATION_COUNT 512
 typedef struct State {
     MemoryArena arena;
 
@@ -53,22 +58,20 @@ typedef struct State {
     LoopbackData *loopback_data;
     ServerData   *server_data;
 
+    Thread *recording_thread;
+
     Music music;
     char  music_fp[256];
 
     StateFont font;
 
-    HMM_Vec2 screen_size;
-    HMM_Vec2 window_position;
-
-    F32 master_volume;
-
     F32 samples[SAMPLE_COUNT];
+
     F32 frequencies[FREQUENCY_COUNT];
     U32 frequency_count;
 
+    F32 master_volume;
     F32 dt;
-
     F32 record_start;
 
     I32 ffmpeg;
@@ -79,21 +82,33 @@ typedef struct State {
         U32  wave_cursor;
     } record_data;
 
-    F32 filter[1 << 3];
-    U32 filter_count;
+    F32 *filter;
+    U32  filter_count;
 
     StateCondition condition;
 
-    Parameters *parameters;
+    HM_Hashmap *parameters;
+    HM_Hashmap *animations;
+    HM_Hashmap *procedures;
 
     B8 ui;
     B8 loopback;
+    B8 should_close;
 
-    F64 total_time;
+    HMM_Vec2 screen_size;
+    HMM_Vec2 window_position;
 } State;
 
-void StateInitialise();
-void StateUpdate();
-void StateRender();
-void StateDestroy();
-void StatePushFrame(F32 val, F32 *samples, U32 sample_count);
+void
+StateInitialise();
+void
+StateUpdate();
+void
+StateRender();
+void
+StateDestroy();
+void
+StatePushFrame(F32 val, F32 *samples, U32 sample_count);
+
+B8
+StateShouldClose();

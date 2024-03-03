@@ -36,3 +36,5 @@ make
 make install
 
 cd ../../
+
+cp /usr/local/lib/libcurl.dylib ./build/

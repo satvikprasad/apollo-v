@@ -3,3 +3,4 @@ AllowShortFunctionsOnASingleLine: true
 IndentWidth: 4
 AlignConsecutiveDeclarations: true
 BinPackParameters: false
+AlwaysBreakAfterReturnType: All

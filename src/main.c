@@ -10,16 +10,19 @@
 
 void *libstate;
 
-I32 main(void) {
+I32
+main(void) {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
-    InitWindow(1280, 1080, "Lynx");
+    InitWindow(1280, 1080, "Vizzy");
+
+    SetExitKey(KEY_NULL);
 
     SetTargetFPS(144);
     InitAudioDevice();
 
     StateInitialise();
-    while (!WindowShouldClose()) {
+    while (!StateShouldClose()) {
         StateUpdate();
         StateRender();
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 typedef int64_t I64;
@@ -13,7 +14,7 @@ typedef uint16_t U16;
 typedef uint8_t  U8;
 
 typedef uint32_t B32;
-typedef uint8_t  B8;
+typedef bool     B8;
 
 typedef float  F32;
 typedef double F64;
@@ -78,6 +79,7 @@ typedef double F64;
 typedef struct tagMSG *LPMSG;
 
 #include <windows.h>
+#include <winsock.h>
 
 // Type required by some unused function...
 typedef struct tagBITMAPINFOHEADER {

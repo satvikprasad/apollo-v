@@ -10,7 +10,8 @@
 #include <string.h>
 #include <unistd.h>
 
-static inline U32 WriteFunc(void *data, U32 size, U32 nmemb, void *p_client) {
+static inline U32
+WriteFunc(void *data, U32 size, U32 nmemb, void *p_client) {
     U32     write_size = size * nmemb;
     Memory *mem = (Memory *)p_client;
 
@@ -27,19 +28,20 @@ static inline U32 WriteFunc(void *data, U32 size, U32 nmemb, void *p_client) {
     return write_size;
 }
 
-void ServerInitialise(ServerData  *server_data,
-                      const char  *uri,
-                      MemoryArena *arena) {
+void
+ServerInitialise(ServerData *server_data, const char *uri, MemoryArena *arena) {
     server_data->curl = curl_easy_init();
     server_data->uri = uri;
     server_data->thread = ThreadAlloc(arena);
 }
 
-void ServerDestroy(ServerData *server_data) {
+void
+ServerDestroy(ServerData *server_data) {
     curl_easy_cleanup(server_data->curl);
 }
 
-static inline void FormatUrl(const char *uri, const char *endpoint, char *url) {
+static inline void
+FormatUrl(const char *uri, const char *endpoint, char *url) {
     char buf[512];
 
     snprintf(buf, 512, "%s/%s", uri, endpoint);
@@ -47,7 +49,8 @@ static inline void FormatUrl(const char *uri, const char *endpoint, char *url) {
     strcpy(url, buf);
 }
 
-void ServerGet(ServerData *server_data, char *endpoint, char *response) {
+void
+ServerGet(ServerData *server_data, char *endpoint, char *response) {
     CURLcode res;
 
     char url[512];
@@ -83,7 +86,8 @@ typedef struct GetRequestArgs {
     void (*callback)(void *user_data, char *response);
 } GetRequestArgs;
 
-static inline void *GetRequestThread(void *data) {
+static inline void *
+GetRequestThread(void *data) {
     GetRequestArgs *args = (GetRequestArgs *)data;
 
     ServerGet(args->server_data, args->endpoint, args->response);
@@ -95,11 +99,12 @@ static inline void *GetRequestThread(void *data) {
     return NULL;
 }
 
-void ServerGetAsync(ServerData *server_data,
-                    char       *endpoint,
-                    void       *user_data,
-                    void (*callback)(void *user_data, char *response),
-                    MemoryArena *arena) {
+void
+ServerGetAsync(ServerData *server_data,
+               char       *endpoint,
+               void       *user_data,
+               void (*callback)(void *user_data, char *response),
+               MemoryArena *arena) {
     GetRequestArgs *args = ArenaPushStruct(arena, GetRequestArgs);
 
     args->server_data = server_data;
@@ -111,10 +116,11 @@ void ServerGetAsync(ServerData *server_data,
     ThreadCreate(server_data->thread, GetRequestThread, args);
 }
 
-void ServerPost(ServerData *server_data,
-                const char *endpoint,
-                const char *data,
-                char       *response) {
+void
+ServerPost(ServerData *server_data,
+           const char *endpoint,
+           const char *data,
+           char       *response) {
     CURLcode res;
 
     char url[512];
@@ -157,7 +163,8 @@ typedef struct PostRequestArgs {
     void (*callback)(void *user_data, char *response);
 } PostRequestArgs;
 
-void *PostRequestThread(void *data) {
+void *
+PostRequestThread(void *data) {
     PostRequestArgs *args = (PostRequestArgs *)data;
 
     ServerPost(args->server_data, args->endpoint, args->data, args->response);
@@ -169,12 +176,13 @@ void *PostRequestThread(void *data) {
     return NULL;
 }
 
-void ServerPostAsync(ServerData *server_data,
-                     char       *endpoint,
-                     const char *data,
-                     void       *user_data,
-                     void (*callback)(void *user_data, char *response),
-                     MemoryArena *arena) {
+void
+ServerPostAsync(ServerData *server_data,
+                char       *endpoint,
+                const char *data,
+                void       *user_data,
+                void (*callback)(void *user_data, char *response),
+                MemoryArena *arena) {
     PostRequestArgs *args = ArenaPushStruct(arena, PostRequestArgs);
 
     args->server_data = server_data;
@@ -187,4 +195,7 @@ void ServerPostAsync(ServerData *server_data,
     ThreadCreate(server_data->thread, PostRequestThread, args);
 }
 
-void ServerWait(ServerData *server_data) { ThreadJoin(server_data->thread); }
+void
+ServerWait(ServerData *server_data) {
+    ThreadJoin(server_data->thread);
+}

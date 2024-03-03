@@ -8,40 +8,65 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "animation.h"
 #include "api.h"
 #include "arena.h"
 #include "defines.h"
 #include "ffmpeg.h"
 #include "handmademath.h"
-#include "json.h"
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
+#include "procedures.h"
 #include "renderer.h"
 #include "server.h"
 #include "signals.h"
+#include "thread.h"
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 
-static void Serialize();
-static bool Deserialize();
-static void RenderUI();
-static void Render();
+static void
+Serialize();
+static bool
+Deserialize();
+static void
+RenderUI();
+static void
+Render();
 
-static void BeginRecording();
-static void EndRecording();
-static void UpdateRecording();
+static void
+BeginRecording();
+static void
+EndRecording();
+static void
+UpdateRecording();
 
-static void SetFrequencyCount();
-static B8   GetDroppedFiles();
+static void
+SetFrequencyCount();
+static B8
+GetDroppedFiles();
 
-static void FrameCallback(void *buffer_data, U32 n);
+static void
+FrameCallback(void *buffer_data, U32 n);
+
+static void
+PrintEllipses(U32 max, char buf[max + 1]);
+
+static void
+CreateFilter(F32 *filter, U32 filter_count);
+
+static void
+CircleFrequenciesProc(void *user_data);
+
+static void
+NormalFrequenciesProc(void *user_data);
 
 static StateMemory memory;
 static State      *state;
 
-static StateFont LoadStateFont(const char *fp) {
+static StateFont
+LoadStateFont(const char *fp) {
     StateFont font;
 
     U32 incr = MAX_FONT_SIZE / FONT_SIZES_PER_FONT;
@@ -53,22 +78,16 @@ static StateFont LoadStateFont(const char *fp) {
     return font;
 }
 
-static void UnloadStateFont(StateFont font) {
+static void
+UnloadStateFont(StateFont font) {
     for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
         UnloadFont(font.fonts[i]);
     }
 }
 
-static void GetTotalTimeCallback(void *user_data, char *response) {
-    State *state = (State *)user_data;
-
-    char buf[256];
-    JsonObjectGetKey(response, "time", buf);
-
-    state->total_time = atof(buf);
-}
-
-void StateInitialise() {
+void
+StateInitialise() {
+    // Initialising memory
     memory.permanent_storage_size = 1024 * 1024 * 1024;
     memory.permanent_storage =
         PermanentStorageInit(memory.permanent_storage_size);
@@ -88,10 +107,6 @@ void StateInitialise() {
     {
         state->parameters = ParameterCreate();
 
-        ParameterSet(state->parameters, &(Parameter){.name = "wave_width",
-                                                     .value = 10.f,
-                                                     .min = 1,
-                                                     .max = 100});
         ParameterSet(state->parameters, &(Parameter){.name = "smoothing",
                                                      .value = 5.0f,
                                                      .min = 1,
@@ -101,6 +116,20 @@ void StateInitialise() {
                                                      .min = 1,
                                                      .max = 100});
     }
+
+    // Initialise animations
+    state->animations = AnimationsCreate();
+
+    {
+        state->procedures = ProcedureCreate();
+
+        ProcedureAdd(state->procedures, "circle_frequencies", NULL,
+                     CircleFrequenciesProc, &state->arena);
+        ProcedureAdd(state->procedures, "normal_frequencies", NULL,
+                     NormalFrequenciesProc, &state->arena);
+    }
+
+    ApiInitialise("lua/init.lua", state, state->api_data);
 
     if (Deserialize()) {
         if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
@@ -122,14 +151,14 @@ void StateInitialise() {
 
     state->font = LoadStateFont("assets/fonts/helvetica.ttf");
 
-    GuiSetFont(FontClosestToSize(state->font, 10));
-    GuiSetStyle(DEFAULT, TEXT_SIZE, 10);
-
-    for (I32 i = -2; i < 3; ++i) {
-        state->filter[i + 2] = expf(-i * i);
-    }
-
     state->filter_count = 5;
+    state->filter = ArenaPushArray(&state->arena, state->filter_count, F32);
+    CreateFilter(state->filter, state->filter_count);
+
+    GuiSetFont(FontClosestToSize(state->font, 20));
+    GuiSetStyle(DEFAULT, TEXT_SIZE,
+                FontClosestToSize(state->font, 20).baseSize);
+    GuiSetStyle(DEFAULT, TEXT_COLOR_NORMAL, 0xFFFFFFFF);
 
     SignalsProcessSamples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL,
                           &state->frequency_count, 0, 0, state->filter,
@@ -142,21 +171,23 @@ void StateInitialise() {
     }
 
     RendererInitialise(state->renderer_data);
-    ApiInitialise("lua/init.lua", state, state->api_data);
     LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
-
-    ServerGetAsync(state->server_data, "metrics/total-time", state,
-                   GetTotalTimeCallback, &state->arena);
 }
 
-void StateDestroy() {
-    F64 elapsed = GetTime();
+static void
+CreateFilter(F32 *filter, U32 filter_count) {
+    I32 begin = (U32)floor((F32)filter_count / 2);
 
-    ServerPostAsync(state->server_data, "add-metric",
-                    TextFormat("{\"time\": %f}", elapsed), NULL, NULL,
-                    &state->arena);
+    I32 end = (U32)ceil((F32)filter_count / 2);
 
+    for (I32 i = -begin; i < end; ++i) {
+        filter[i + begin] = expf(-i * i);
+    }
+}
+
+void
+StateDestroy() {
     ServerWait(state->server_data);
 
     Serialize();
@@ -177,13 +208,74 @@ void StateDestroy() {
     PermanentStorageDestroy(memory.permanent_storage);
 }
 
-void StateUpdate() {
+void
+AddMetricCallback(void *user_data, char *response) {
+    *(B8 *)user_data = true;
+}
+
+static void
+FadeAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+    anim->val = anim->elapsed / *(F32 *)user_data;
+
+    if (anim->val > 1.0) {
+        anim->val = 1.0f;
+        anim->finished = true;
+    }
+}
+
+static void *
+EndRecordingThread(void *data) {
+    EndRecording();
+    return NULL;
+}
+
+void
+EndRecordingAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+    anim->val = (0.5f - anim->elapsed) / 0.5f;
+
+    if (anim->elapsed >= 0.5) {
+        anim->val = 0.0f;
+        state->condition = StateCondition_NORMAL;
+        anim->finished = true;
+    }
+}
+
+void
+StateUpdate() {
     ApiUpdate(state->api_data, state);
+    AnimationsUpdate(state->animations);
 
     SetFrequencyCount();
 
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        if (state->condition != StateCondition_RECORDING) {
+            ServerPostAsync(state->server_data, "add-metric",
+                            TextFormat("{\"time\": %f}", GetTime()),
+                            &state->should_close, AddMetricCallback,
+                            &state->arena);
+
+            state->condition = StateCondition_EXITING;
+
+            AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
+                          FadeAnimationUpdate, &state->arena);
+        } else {
+            if (!state->recording_thread) {
+                state->recording_thread = ThreadAlloc(&state->arena);
+            }
+
+            ThreadCreate(state->recording_thread, EndRecordingThread, state);
+
+            AnimationsAdd(state->animations, "end_recording", NULL,
+                          EndRecordingAnimationUpdate, &state->arena);
+
+            ResumeMusicStream(state->music);
+        }
+    }
+
     switch (state->condition) {
-    case StateCondition_NORMAL:
+    case StateCondition_EXITING: {
+    } break;
+    case StateCondition_NORMAL: {
         ApiPreUpdate(state->api_data, state);
 
         if (!IsMusicReady(state->music)) {
@@ -253,6 +345,9 @@ void StateUpdate() {
         if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
+
+            AnimationsAdd(state->animations, "recording", &(F32){0.4f},
+                          FadeAnimationUpdate, &state->arena);
         }
 
         SignalsProcessSamples(
@@ -262,20 +357,20 @@ void StateUpdate() {
             state->filter, state->filter_count,
             ParameterGetValue(state->parameters, "velocity"));
 
-        break;
+    } break;
 
-    case StateCondition_ERROR:
-        break;
+    case StateCondition_ERROR: {
+    } break;
 
-    case StateCondition_LOAD:
+    case StateCondition_LOAD: {
         if (IsFileDropped()) {
             if (GetDroppedFiles()) {
                 state->condition = StateCondition_NORMAL;
             }
         }
-        break;
+    } break;
 
-    case StateCondition_RECORDING:
+    case StateCondition_RECORDING: {
         if (state->record_data.wave_cursor >=
             state->record_data.wave.frameCount) {
             EndRecording();
@@ -283,7 +378,7 @@ void StateUpdate() {
         }
 
         UpdateRecording();
-        break;
+    } break;
     }
 
     state->dt = GetFrameTime();
@@ -297,14 +392,25 @@ void StateUpdate() {
     state->master_volume = GetMasterVolume();
 }
 
-void StateRender() {
+void
+StateRender() {
     Color clear = state->api_data->data.opt.bg_color;
 
     BeginDrawing();
     ClearBackground(clear);
 
     switch (state->condition) {
-    case StateCondition_NORMAL:
+    case StateCondition_EXITING: {
+        char buf[4];
+        PrintEllipses(3, buf);
+
+        RendererDrawTextCenter(
+            XLargeFont(state->font), TextFormat("Exiting%s", buf),
+            HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
+            (Color){255, 255, 255,
+                    255 * AnimationsLoad(state->animations, "exiting")});
+    } break;
+    case StateCondition_NORMAL: {
         if (!IsMusicReady(state->music)) {
             state->condition = StateCondition_LOAD;
             break;
@@ -313,19 +419,28 @@ void StateRender() {
 
         Render();
         RenderUI();
-        break;
+    } break;
 
-    case StateCondition_LOAD:
-        RendererDrawTextCenter(MediumFont(state->font),
-                               "Drag & drop music to play",
-                               HMM_V2(state->screen_size.Width / 2,
-                                      state->screen_size.Height / 2));
-        break;
+    case StateCondition_LOAD: {
+        RendererDrawTextCenter(
+            MediumFont(state->font), "Drag & drop music to play",
+            HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
+            (Color){255, 255, 255, 255});
+    } break;
 
-    case StateCondition_RECORDING:
-        RendererDrawTextCenter(XLargeFont(state->font), "Now recording...",
-                               HMM_V2(state->screen_size.Width / 2,
-                                      state->screen_size.Height / 2));
+    case StateCondition_RECORDING: {
+        char buf[4];
+        PrintEllipses(3, buf);
+
+        F64 alpha = 1.0f;
+
+        AnimationsApply(state->animations, "recording", &alpha);
+        AnimationsApply(state->animations, "end_recording", &alpha);
+
+        RendererDrawTextCenter(
+            XLargeFont(state->font), TextFormat("Now recording%s", buf),
+            HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
+            (Color){255, 255, 255, 255 * alpha});
 
         RendererBeginRecording(state->renderer_data);
         {
@@ -335,7 +450,7 @@ void StateRender() {
         }
         RendererEndRecording(state->renderer_data, state->ffmpeg);
 
-        break;
+    } break;
 
     default:
         printf("Unhandled case\n");
@@ -345,20 +460,23 @@ void StateRender() {
     EndDrawing();
 }
 
-static void WriteString(const char *str, FILE *fptr) {
+static void
+WriteString(const char *str, FILE *fptr) {
     U32 len = strlen(str);
 
     fwrite(&len, sizeof(U32), 1, fptr);
     fwrite(str, sizeof(char), len + 1, fptr);
 }
 
-static void ReadString(char *str, FILE *fptr) {
+static void
+ReadString(char *str, FILE *fptr) {
     U32 len;
     fread(&len, sizeof(U32), 1, fptr);
     fread(str, sizeof(char), len + 1, fptr);
 }
 
-static void Serialize() {
+static void
+Serialize() {
     FILE *fptr;
     fptr = fopen("data.ly", "wb");
     {
@@ -383,7 +501,8 @@ static void Serialize() {
     fclose(fptr);
 }
 
-static bool Deserialize() {
+static bool
+Deserialize() {
     if (access("data.ly", F_OK) == 0) {
         FILE *fptr;
         fptr = fopen("data.ly", "rb");
@@ -423,12 +542,13 @@ static bool Deserialize() {
     return false;
 }
 
-static void RenderParameterSlider(const char *name,
-                                  Rectangle   rect,
-                                  const char *text_left,
-                                  const char *text_right,
-                                  F32         min,
-                                  F32         max) {
+static void
+RenderParameterSlider(const char *name,
+                      Rectangle   rect,
+                      const char *text_left,
+                      const char *text_right,
+                      F32         min,
+                      F32         max) {
     F32 val = ParameterGetValue(state->parameters, name);
 
     GuiSlider(rect, text_left, text_right, &val, min, max);
@@ -436,7 +556,8 @@ static void RenderParameterSlider(const char *name,
     ParameterSetValue(state->parameters, name, val);
 }
 
-static void RenderUI() {
+static void
+RenderUI() {
     if (state->ui) {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#120#")) {
             state->ui = false;
@@ -455,15 +576,26 @@ static void RenderUI() {
             ++i;
         }
 
+        printf("count: %d", hashmap_count(state->procedures));
+
+        Procedure *proc;
+        _ = 0;
+        i = 0;
+        while (ProcedureIter(state->procedures, &_, &proc)) {
+            if (GuiToggle((Rectangle){state->screen_size.Width - 250,
+                                      i * 30 + top_padding, 200, 20},
+                          TextFormat("%s", proc->name), &proc->active)) {
+                ProcedureToggle(state->procedures, proc->name);
+            }
+            ++i;
+        }
+
         if (GuiButton(
                 (Rectangle){state->screen_size.Width - 35, top_padding, 25, 25},
                 "#11#")) {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
-
-        GuiLabel((Rectangle){100, 200, 100, 100},
-                 TextFormat("Total time: %3.f", state->total_time + GetTime()));
     } else {
         if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
             state->ui = true;
@@ -471,22 +603,32 @@ static void RenderUI() {
     }
 }
 
-static void Render() {
-    ApiPreRender(state->api_data, state);
-
+static void
+CircleFrequenciesProc(void *user_data) {
     RendererDrawCircleFrequencies(state->renderer_data, state->frequency_count,
                                   state->frequencies,
                                   state->renderer_data->default_color_func);
-    // RendererDrawWaveform(state->renderer_data, SAMPLE_COUNT, state->samples,
-    //                      ParameterGetValue(state->parameters, "wave_width"));
+}
+
+static void
+NormalFrequenciesProc(void *user_data) {
     RendererDrawFrequencies(state->renderer_data, state->frequency_count,
                             state->frequencies, true,
                             state->renderer_data->default_color_func);
+}
+
+static void
+Render() {
+    ApiPreRender(state->api_data, state);
+
+    ProcedureCall(state->procedures, "circle_frequencies");
+    ProcedureCall(state->procedures, "normal_frequencies");
 
     ApiRender(state->api_data, state);
 }
 
-static void BeginRecording() {
+static void
+BeginRecording() {
     memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
     memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
 
@@ -503,16 +645,16 @@ static void BeginRecording() {
     PauseMusicStream(state->music);
 }
 
-static void EndRecording() {
+static void
+EndRecording() {
     FFMPEGEnd(state->ffmpeg);
 
     UnloadWave(state->record_data.wave);
     UnloadWaveSamples(state->record_data.wave_samples);
-
-    ResumeMusicStream(state->music);
 }
 
-static void UpdateRecording() {
+static void
+UpdateRecording() {
     U32 chunk_size = state->record_data.wave.sampleRate / RENDER_FPS;
     F32(*frames)
     [state->record_data.wave.channels] =
@@ -535,7 +677,8 @@ static void UpdateRecording() {
         state->filter_count, ParameterGetValue(state->parameters, "velocity"));
 }
 
-static void SetFrequencyCount() {
+static void
+SetFrequencyCount() {
     U32 freq_count;
     SignalsProcessSamples(
         LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0,
@@ -550,7 +693,8 @@ static void SetFrequencyCount() {
     }
 }
 
-static B8 GetDroppedFiles() {
+static B8
+GetDroppedFiles() {
     B8 ret = false;
 
     FilePathList dropped_files = LoadDroppedFiles();
@@ -579,15 +723,37 @@ static B8 GetDroppedFiles() {
     return ret;
 }
 
-void StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
+void
+StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
     memmove(samples, samples + 1, (sample_count - 1) * sizeof(F32));
     samples[sample_count - 1] = val;
 }
 
-static void FrameCallback(void *buffer_data, U32 n) {
+B8
+StateShouldClose() {
+    return state->should_close || WindowShouldClose();
+}
+
+static void
+FrameCallback(void *buffer_data, U32 n) {
     F32(*frame_data)[state->music.stream.channels] = buffer_data;
 
     for (U32 i = 0; i < n; ++i) {
         StatePushFrame(frame_data[i][0], state->samples, SAMPLE_COUNT);
+    }
+}
+
+static void
+PrintEllipses(U32 max, char *buf) {
+    memset(buf, ' ', strlen(buf));
+
+    U32 n = (U32)roundf((F32)max / 2 * sinf(5 * GetTime()) + (F32)max / 2);
+
+    for (U32 i = 0; i < n; ++i) {
+        if (i > max - 1) {
+            break;
+        }
+
+        buf[i] = '.';
     }
 }

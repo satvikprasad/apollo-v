@@ -1,33 +1,46 @@
 A = lynx.api
 
-local vertices = {}
-local indices = {}
-local screen_size
+S = {
+    vertices = {},
+    indices = {},
+    screen_size = {},
+}
 
-A.add_param("font_size", 20, 10, 100)
+local font_size = A.param.add("FontSize", 20, 10, 100)
+local wave_width = A.param.add("WaveWidth", 10, 1, 100)
 
-A.on_update(function()
-    screen_size = A.get_screen_size()
+local red_waveform_proc = A.proc.add("RedWaveform", function()
+    A.bind_shader(0, "assets/shaders/red.fs")
 
-    local samples = A.get_samples()
+    A.renderer.draw_lined_poly(S.vertices, S.indices, {255, 255, 255, 255})
 
-    for i = 1, screen_size[1] do
-        local y = i - 1
+    A.unbind_shader()
+end)
 
-        vertices[i] = {y*A.get_param("wave_width"), samples[#samples - i + 1]*screen_size[2]/2 + screen_size[2]/2}
-        indices[i] = {y, samples[#samples - i + 1]}
-    end
+local sin_animation = A.animation.add("SinText", function(animation, _)
+    local elapsed = A.animation.get_elapsed(animation)
+
+    A.animation.set_val(animation, math.sin(elapsed)*0.5 + 0.5)
 end)
 
 
+A.on_update(function()
+    S.screen_size = A.get_screen_size()
+
+    local samples = A.get_samples()
+
+    for i = 1, S.screen_size.x do
+        local y = i - 1
+
+        S.vertices[i] = {y*A.param.get(wave_width), samples[#samples - i + 1]*S.screen_size.y/2 + S.screen_size.y/2}
+        S.indices[i] = {y, samples[#samples - i + 1]}
+    end
+end)
+
 A.pre_render(function()
-    A.bind_shader(0, "assets/shaders/red.fs")
+    A.proc.call(red_waveform_proc)
 
-    A.draw_lined_poly(vertices, indices, {255, 255, 255, 255})
-
-    A.unbind_shader()
-
-    A.draw_centered_text("Waveform", {255, 255}, A.get_param("font_size"))
+    A.renderer.draw_centered_text("Vizzy.", {255, 100 + 255*A.animation.load(sin_animation, 0.5)}, A.param.get(font_size))
 end)
 
 function table.copy(t)
