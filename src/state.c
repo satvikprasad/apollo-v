@@ -6,13 +6,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "animation.h"
 #include "api.h"
 #include "arena.h"
 #include "defines.h"
 #include "ffmpeg.h"
+#include "filesystem.h"
 #include "handmademath.h"
 #include "lmath.h"
 #include "parameter.h"
@@ -72,7 +72,8 @@ LoadStateFont(const char *fp) {
     U32 incr = MAX_FONT_SIZE / FONT_SIZES_PER_FONT;
 
     for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
-        font.fonts[i] = LoadFontEx(fp, (i + 1) * incr, NULL, 0);
+        font.fonts[i] =
+            LoadFontEx(FSFormatAssetsDirectory(fp), (i + 1) * incr, NULL, 0);
     }
 
     return font;
@@ -129,11 +130,14 @@ StateInitialise() {
                      NormalFrequenciesProc, &state->arena);
     }
 
-    ApiInitialise("lua/init.lua", state, state->api_data);
+    char home[512];
+    FSGetHomeDirectory(home);
+    ApiInitialise(TextFormat("%s/%s", home, ".config/vizzy/init.lua"), state,
+                  state->api_data);
 
     if (Deserialize()) {
         if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
-            strcpy(state->music_fp, "assets/monks.mp3");
+            strcpy(state->music_fp, FSFormatAssetsDirectory("monks.mp3"));
         }
 
         state->music = LoadMusicStream(state->music_fp);
@@ -149,7 +153,7 @@ StateInitialise() {
     SetWindowPosition(state->window_position.X, state->window_position.Y);
     SetMasterVolume(state->master_volume);
 
-    state->font = LoadStateFont("assets/fonts/helvetica.ttf");
+    state->font = LoadStateFont("fonts/helvetica.ttf");
 
     state->filter_count = 5;
     state->filter = ArenaPushArray(&state->arena, state->filter_count, F32);
@@ -480,7 +484,8 @@ ReadString(char *str, FILE *fptr) {
 static void
 Serialize() {
     FILE *fptr;
-    fptr = fopen("data.ly", "wb");
+
+    fptr = fopen(FSFormatDataDirectory("data.ly"), "wb");
     {
         fwrite(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
         fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
@@ -505,9 +510,9 @@ Serialize() {
 
 static bool
 Deserialize() {
-    if (access("data.ly", F_OK) == 0) {
+    if (FileExists(FSFormatDataDirectory("data.ly"))) {
         FILE *fptr;
-        fptr = fopen("data.ly", "rb");
+        fptr = fopen(FSFormatDataDirectory("data.ly"), "rb");
         {
             fread(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
             fread(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
