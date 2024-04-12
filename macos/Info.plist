@@ -11,9 +11,9 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
-    <string>ttxt</key>
+    <string>ttxt</string>
     <key>CFBundleExecutable</key>
-    <string>Vizzy</key>
+    <string>Vizzy</string>
 </dict>
 </plist>
 

@@ -41,12 +41,14 @@ package: assets
 	@mkdir -p Vizzy.app/Contents/Resources/
 	@$(COPY) build/assets Vizzy.app/Contents/Resources/
 	@$(COPY) build/lua Vizzy.app/Contents/Resources/
-	@$(COPY) Info.plist Vizzy.app/Contents/
+	@$(COPY) macos/Info.plist Vizzy.app/Contents/
 	@echo Fixing library paths...
 	@install_name_tool -change /usr/local/lib/libportaudio.2.dylib @executable_path/../Frameworks/libportaudio.2.dylib Vizzy.app/Contents/MacOS/Vizzy
 	@install_name_tool -change /usr/local/lib/libcurl.4.dylib @executable_path/../Frameworks/libcurl.4.dylib Vizzy.app/Contents/MacOS/Vizzy
-	@codesign -v -f -s "F0A4C88DBC7C2AD8949C59E4D18FE1BEFDFF4180" --entitlements entitlements.plist ./Vizzy.app
-	@find ./Vizzy.app/Contents/ -type f \( -name "Vizzy" -or -name "*.dylib" \) -exec codesign --verbose -f -s "F0A4C88DBC7C2AD8949C59E4D18FE1BEFDFF4180" --entitlements entitlements.plist {} \;
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.2.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/MacOS/Vizzy
 	@hdiutil create -size 64m -fs HFS+ -volname "Vizzy" VizzyRW.dmg
 	@hdiutil attach VizzyRW.dmg
 	@cp -r ./Vizzy.app /Volumes/Vizzy/
