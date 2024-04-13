@@ -25,6 +25,40 @@ endif
 build: $(SRC)
 	$(CC) $(SRC) -Wall -Wextra -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-pointer-type-mismatch -g -o $(OUT) $(CFLAGS) $(LDFLAGS)
 
+package: assets
+	@rm -rf Vizzy.app/
+	@rm -rf /Applications/Vizzy.app
+	@rm -rf *.dmg
+	@echo Cleaned up...
+	@mkdir -p Vizzy.app/
+	@mkdir -p Vizzy.app/Contents/
+	@mkdir -p Vizzy.app/Contents/MacOS/
+	@$(CC) $(SRC) -Wall -Wextra -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-pointer-type-mismatch -D PLAT_MACOS -O3 -o ./Vizzy.app/Contents/MacOS/Vizzy $(CFLAGS) $(LDFLAGS)
+	@mkdir -p Vizzy.app/Contents/Frameworks/
+	@$(COPY) /usr/local/lib/libcurl.4.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /usr/local/lib/libportaudio.2.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /usr/local/lib/libportaudio.dylib Vizzy.app/Contents/Frameworks/
+	@mkdir -p Vizzy.app/Contents/Resources/
+	@$(COPY) build/assets Vizzy.app/Contents/Resources/
+	@$(COPY) build/lua Vizzy.app/Contents/Resources/
+	@$(COPY) macos/Info.plist Vizzy.app/Contents/
+	@echo Fixing library paths...
+	@install_name_tool -change /usr/local/lib/libportaudio.2.dylib @executable_path/../Frameworks/libportaudio.2.dylib Vizzy.app/Contents/MacOS/Vizzy
+	@install_name_tool -change /usr/local/lib/libcurl.4.dylib @executable_path/../Frameworks/libcurl.4.dylib Vizzy.app/Contents/MacOS/Vizzy
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.2.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/MacOS/Vizzy
+	@hdiutil create -size 64m -fs HFS+ -volname "Vizzy" VizzyRW.dmg
+	@hdiutil attach VizzyRW.dmg
+	@cp -r ./Vizzy.app /Volumes/Vizzy/
+	@ln -s /Applications /Volumes/Vizzy/
+	@hdiutil detach /Volumes/Vizzy
+	@hdiutil convert VizzyRW.dmg -format UDZO -o Vizzy.dmg
+	@rm VizzyRW.dmg
+	@rm -rf ./Vizzy.app
+	@echo Done.
+
 run: build assets
 	@./build/lynx
 
@@ -37,13 +71,20 @@ libs: dirs tars
 	@cd lib/curl-8.5.0; ./configure --with-openssl --disable-shared; make; make install;
 	# @cd lib/portaudio; ./configure; make; make install;
 	@$(COPY) /usr/local/lib/libcurl.dylib ./build/
+	@$(COPY) /usr/local/lib/libportaudio.2.dylib ./build/
+	@$(COPY) /usr/local/lib/libportaudio.dylib ./build/
+
+install:
+	@$(COPY) ./build/libcurl.dylib /usr/local/lib/
+	@$(COPY) ./build/libportaudio.2.dylib /usr/local/lib/
+	@$(COPY) ./build/libportaudio.dylib /usr/local/lib/
 
 dirs:
 	@$(MKDIR) build
 	@$(MKDIR) build/assets
 	@$(MKDIR) build/lua
 
-assets:
+assets: dirs
 	@$(COPY) ./assets/* build/assets/
 	@$(COPY) ./lua/* build/lua
 

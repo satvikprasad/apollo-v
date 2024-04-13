@@ -3,6 +3,7 @@
 #include "animation.h"
 #include "arena.h"
 #include "defines.h"
+#include "filesystem.h"
 #include "handmademath.h"
 #include "hashmap.h"
 #include "lmath.h"
@@ -166,8 +167,11 @@ ApiInitialise(const char *api_fp, void *state, ApiData *api) {
         char cwd[512];
         getcwd(cwd, 512);
 
+        char home[512];
+        FSGetHomeDirectory(home);
+
         char buffer[512];
-        snprintf(buffer, 512, "%s/lua/?.lua", cwd);
+        snprintf(buffer, 512, "%s/lua/?.lua;%s/.config/vizzy/?.lua", cwd, home);
 
         SetPath(api->lua, buffer);
     }

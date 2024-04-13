@@ -1,4 +1,3 @@
-// #define MINIAUDIO_IMPLEMENTATION
 #include "loopback.h"
 #include "state.h"
 
@@ -8,10 +7,16 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-void LoopbackDataCallback(ma_device  *device,
-                          void       *output,
-                          const void *input,
-                          ma_uint32   frame_count) {
+typedef struct LoopbackData {
+    ma_device device;
+    B8        is_initialised;
+} LoopbackData;
+
+void
+LoopbackDataCallback(ma_device  *device,
+                     void       *output,
+                     const void *input,
+                     ma_uint32   frame_count) {
     (void)output;
 
     State *state = (State *)device->pUserData;
@@ -25,7 +30,8 @@ void LoopbackDataCallback(ma_device  *device,
     }
 }
 
-void LoopbackInitialise(LoopbackData *data, void *state) {
+void
+LoopbackInitialise(LoopbackData *data, void *state) {
     ma_backend backends[] = {ma_backend_wasapi, ma_backend_pulseaudio};
 
     ma_encoder_config encoder_config =
@@ -60,8 +66,14 @@ void LoopbackInitialise(LoopbackData *data, void *state) {
     data->is_initialised = true;
 }
 
-void LoopbackDestroy(LoopbackData *data) {
+void
+LoopbackDestroy(LoopbackData *data) {
     if (data->is_initialised) {
         ma_device_uninit(&data->device);
     }
+}
+
+U32
+LoopbackDataSize() {
+    return sizeof(LoopbackData);
 }
