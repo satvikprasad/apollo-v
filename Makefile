@@ -29,6 +29,7 @@ package: assets
 	@rm -rf Vizzy.app/
 	@rm -rf /Applications/Vizzy.app
 	@rm -rf *.dmg
+	@if [ -d "/Volumes/Vizzy" ]; then diskutil unmount /Volumes/Vizzy; fi
 	@echo Cleaned up...
 	@mkdir -p Vizzy.app/
 	@mkdir -p Vizzy.app/Contents/
@@ -38,6 +39,12 @@ package: assets
 	@$(COPY) /usr/local/lib/libcurl.4.dylib Vizzy.app/Contents/Frameworks/
 	@$(COPY) /usr/local/lib/libportaudio.2.dylib Vizzy.app/Contents/Frameworks/
 	@$(COPY) /usr/local/lib/libportaudio.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/libnghttp2/lib/libnghttp2.14.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/libidn2/lib/libidn2.0.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/libunistring/lib/libunistring.5.dylib Vizzy.app/Contents/Frameworks/
+	@$(COPY) /opt/homebrew/opt/gettext/lib/libintl.8.dylib Vizzy.app/Contents/Frameworks/
 	@mkdir -p Vizzy.app/Contents/Resources/
 	@$(COPY) build/assets Vizzy.app/Contents/Resources/
 	@$(COPY) build/lua Vizzy.app/Contents/Resources/
@@ -45,9 +52,23 @@ package: assets
 	@echo Fixing library paths...
 	@install_name_tool -change /usr/local/lib/libportaudio.2.dylib @executable_path/../Frameworks/libportaudio.2.dylib Vizzy.app/Contents/MacOS/Vizzy
 	@install_name_tool -change /usr/local/lib/libcurl.4.dylib @executable_path/../Frameworks/libcurl.4.dylib Vizzy.app/Contents/MacOS/Vizzy
+	@echo Signing libcurl
+	@install_name_tool -change /opt/homebrew/opt/libnghttp2/lib/libnghttp2.14.dylib @executable_path/../Frameworks/libnghttp2.14.dylib Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@install_name_tool -change /opt/homebrew/opt/libidn2/lib/libidn2.0.dylib @executable_path/../Frameworks/libidn2.0.dylib Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@install_name_tool -change /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib @executable_path/../Frameworks/libssl.3.dylib Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@install_name_tool -change /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib @executable_path/../Frameworks/libcrypto.3.dylib Vizzy.app/Contents/Frameworks/libcurl.4.dylib
+	@echo Signing libidn2
+	@install_name_tool -change /opt/homebrew/opt/libunistring/lib/libunistring.5.dylib @executable_path/../Frameworks/libunistring.5.dylib Vizzy.app/Contents/Frameworks/libidn2.0.dylib	
+	@install_name_tool -change /opt/homebrew/opt/gettext/lib/libintl.8.dylib @executable_path/../Frameworks/libintl.8.dylib Vizzy.app/Contents/Frameworks/libidn2.0.dylib
+	@echo Signing libssl
+	@install_name_tool -change /opt/homebrew/Cellar/openssl@3/3.2.1/lib/libcrypto.3.dylib @executable_path/../Frameworks/libcrypto.3.dylib Vizzy.app/Contents/Frameworks/libssl.3.dylib
 	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libcurl.4.dylib
 	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.2.dylib
 	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libportaudio.dylib
+	@codesign --remove-signature ./Vizzy.app/Contents/Frameworks/libidn2.0.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libidn2.0.dylib
+	@codesign --remove-signature ./Vizzy.app/Contents/Frameworks/libssl.3.dylib
+	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/Frameworks/libssl.3.dylib
 	@codesign -s vizzy-codesign-cert ./Vizzy.app/Contents/MacOS/Vizzy
 	@hdiutil create -size 64m -fs HFS+ -volname "Vizzy" VizzyRW.dmg
 	@hdiutil attach VizzyRW.dmg

@@ -86,8 +86,24 @@ UnloadStateFont(StateFont font) {
     }
 }
 
+static void
+CreateDirectories() {
+    char home[512];
+    FSGetHomeDirectory(home);
+
+    if (!DirectoryExists(TextFormat("%s/.config", home))) {
+        FSCreateDirectory(TextFormat("%s/.config", home));
+    }
+
+    if (!DirectoryExists(TextFormat("%s/.config/vizzy", home))) {
+        FSCreateDirectory(TextFormat("%s/.config/vizzy", home));
+    }
+}
+
 void
 StateInitialise() {
+    CreateDirectories();
+
     // Initialising memory
     memory.permanent_storage_size = 1024 * 1024 * 1024;
     memory.permanent_storage =
@@ -115,6 +131,10 @@ StateInitialise() {
         ParameterSet(state->parameters, &(Parameter){.name = "velocity",
                                                      .value = 10.f,
                                                      .min = 1,
+                                                     .max = 100});
+        ParameterSet(state->parameters, &(Parameter){.name = "Master Volume",
+                                                     .value = 100.0f,
+                                                     .min = 0,
                                                      .max = 100});
     }
 
@@ -334,12 +354,15 @@ StateUpdate() {
         }
 
         if (IsKeyPressed(KEY_M) && IsMusicReady(state->music)) {
-            if (GetMasterVolume() != 0.f) {
-                SetMasterVolume(0.f);
+            if (ParameterGetValue(state->parameters, "Master Volume") != 0.f) {
+                ParameterSetValue(state->parameters, "Master Volume", 0.f);
             } else {
-                SetMasterVolume(1.f);
+                ParameterSetValue(state->parameters, "Master Volume", 100.f);
             }
         }
+
+        SetMasterVolume(ParameterGetValue(state->parameters, "Master Volume") /
+                        100.f);
 
         if (IsFileDropped()) {
             if (!GetDroppedFiles()) {
@@ -486,7 +509,8 @@ Serialize() {
     FILE *fptr;
 
     fptr = fopen(FSFormatDataDirectory("data.ly"), "wb");
-    {
+
+    if (fptr) {
         fwrite(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
         fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
         fwrite(&state->master_volume, sizeof(F32), 1, fptr);
@@ -504,8 +528,11 @@ Serialize() {
             fwrite(&parameter->min, sizeof(F32), 1, fptr);
             fwrite(&parameter->max, sizeof(F32), 1, fptr);
         }
+
+        fclose(fptr);
+    } else {
+        printf("Failed to open file %s\n", FSFormatDataDirectory("data.ly"));
     }
-    fclose(fptr);
 }
 
 static bool
@@ -577,13 +604,11 @@ RenderUI() {
         while (ParameterIter(state->parameters, &_, &parameter)) {
             RenderParameterSlider(
                 parameter->name,
-                (Rectangle){100, i * 30 + top_padding, 200, 20},
+                (Rectangle){400, i * 30 + top_padding, 200, 20},
                 parameter->name, TextFormat("[%.2f]", parameter->value),
                 parameter->min, parameter->max);
             ++i;
         }
-
-        printf("count: %d", hashmap_count(state->procedures));
 
         Procedure *proc;
         _ = 0;

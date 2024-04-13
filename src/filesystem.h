@@ -1,6 +1,9 @@
 #pragma once
 
 void
+FSCreateDirectory(const char *path);
+
+void
 FSGetHomeDirectory(char *path);
 
 const char *
