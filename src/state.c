@@ -14,6 +14,7 @@
 #include "ffmpeg.h"
 #include "filesystem.h"
 #include "handmademath.h"
+#include "hashmap.h"
 #include "lmath.h"
 #include "parameter.h"
 #include "permanent_storage.h"
@@ -95,8 +96,8 @@ CreateDirectories() {
         FSCreateDirectory(TextFormat("%s/.config", home));
     }
 
-    if (!DirectoryExists(TextFormat("%s/.config/vizzy", home))) {
-        FSCreateDirectory(TextFormat("%s/.config/vizzy", home));
+    if (!DirectoryExists(TextFormat("%s/.config/apollo", home))) {
+        FSCreateDirectory(TextFormat("%s/.config/apollo", home));
     }
 }
 
@@ -124,18 +125,20 @@ StateInitialise() {
     {
         state->parameters = ParameterCreate();
 
-        ParameterSet(state->parameters, &(Parameter){.name = "smoothing",
-                                                     .value = 5.0f,
-                                                     .min = 1,
-                                                     .max = 10});
-        ParameterSet(state->parameters, &(Parameter){.name = "velocity",
-                                                     .value = 10.f,
-                                                     .min = 1,
-                                                     .max = 100});
-        ParameterSet(state->parameters, &(Parameter){.name = "Master Volume",
-                                                     .value = 100.0f,
-                                                     .min = 0,
-                                                     .max = 100});
+        state->def_params.velocity = ParameterSet(
+            state->parameters,
+            &(Parameter){
+                .name = "VELOCITY", .value = 10.f, .min = 1, .max = 100});
+
+        state->def_params.smoothing = ParameterSet(
+            state->parameters,
+            &(Parameter){
+                .name = "SMOOTHING", .value = 5.0f, .min = 1, .max = 10});
+
+        state->def_params.master_volume = ParameterSet(
+            state->parameters,
+            &(Parameter){
+                .name = "MASTER VOL", .value = 100.0f, .min = 0, .max = 100});
     }
 
     // Initialise animations
@@ -144,15 +147,18 @@ StateInitialise() {
     {
         state->procedures = ProcedureCreate();
 
-        ProcedureAdd(state->procedures, "circle_frequencies", NULL,
-                     CircleFrequenciesProc, &state->arena);
-        ProcedureAdd(state->procedures, "normal_frequencies", NULL,
-                     NormalFrequenciesProc, &state->arena);
+        state->def_procs.circle_frequencies =
+            _ProcedureAdd(state->procedures, "Circle Frequencies", NULL,
+                          CircleFrequenciesProc, &state->arena);
+
+        state->def_procs.normal_frequencies =
+            _ProcedureAdd(state->procedures, "Normal Frequencies", NULL,
+                          NormalFrequenciesProc, &state->arena);
     }
 
     char home[512];
     FSGetHomeDirectory(home);
-    ApiInitialise(TextFormat("%s/%s", home, ".config/vizzy/init.lua"), state,
+    ApiInitialise(TextFormat("%s/%s", home, ".config/apollo/init.lua"), state,
                   state->api_data);
 
     if (Deserialize()) {
@@ -187,7 +193,7 @@ StateInitialise() {
     SignalsProcessSamples(LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL,
                           &state->frequency_count, 0, 0, state->filter,
                           state->filter_count,
-                          ParameterGetValue(state->parameters, "velocity"),
+                          _ParameterGetValue(state->def_params.velocity),
                           state->zero_frequencies);
 
     if (IsMusicReady(state->music)) {
@@ -322,25 +328,6 @@ StateUpdate() {
             }
         }
 
-        // Smoothing controls
-        if (IsKeyPressed(KEY_MINUS)) {
-            if (ParameterGetValue(state->parameters, "smoothing") != 0) {
-                ParameterSetValue(
-                    state->parameters, "smoothing",
-                    ParameterGetValue(state->parameters, "smoothing") - 1);
-            }
-        }
-
-        if (IsKeyPressed(KEY_EQUAL) && IsKeyDown(KEY_LEFT_SHIFT)) {
-            ParameterSetValue(
-                state->parameters, "smoothing",
-                ParameterGetValue(state->parameters, "smoothing") + 1);
-
-            if (ParameterGetValue(state->parameters, "smoothing") < 0) {
-                ParameterSetValue(state->parameters, "smoothing", 0);
-            }
-        }
-
         if (IsKeyPressed(KEY_SPACE)) {
             if (IsMusicStreamPlaying(state->music)) {
                 PauseMusicStream(state->music);
@@ -353,15 +340,7 @@ StateUpdate() {
             state->screen_size = HMM_V2(GetRenderWidth(), GetRenderHeight());
         }
 
-        if (IsKeyPressed(KEY_M) && IsMusicReady(state->music)) {
-            if (ParameterGetValue(state->parameters, "Master Volume") != 0.f) {
-                ParameterSetValue(state->parameters, "Master Volume", 0.f);
-            } else {
-                ParameterSetValue(state->parameters, "Master Volume", 100.f);
-            }
-        }
-
-        SetMasterVolume(ParameterGetValue(state->parameters, "Master Volume") /
+        SetMasterVolume(_ParameterGetValue(state->def_params.master_volume) /
                         100.f);
 
         if (IsFileDropped()) {
@@ -378,12 +357,24 @@ StateUpdate() {
                           FadeAnimationUpdate, &state->arena);
         }
 
+        if (IsKeyPressed(KEY_M)) {
+            if (IsKeyDown(KEY_LEFT_CONTROL)) {
+                state->render_ui = !state->render_ui;
+            } else if (IsMusicReady(state->music)) {
+                if (_ParameterGetValue(state->def_params.master_volume) !=
+                    0.f) {
+                    _ParameterSetValue(state->def_params.master_volume, 0.f);
+                } else {
+                    _ParameterSetValue(state->def_params.master_volume, 100.f);
+                }
+            }
+        }
+
         SignalsProcessSamples(
             LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT,
             state->frequencies, &state->frequency_count, state->dt,
-            (U32)ParameterGetValue(state->parameters, "smoothing"),
-            state->filter, state->filter_count,
-            ParameterGetValue(state->parameters, "velocity"),
+            (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
+            state->filter_count, _ParameterGetValue(state->def_params.velocity),
             state->zero_frequencies);
 
     } break;
@@ -411,11 +402,6 @@ StateUpdate() {
     }
 
     state->dt = GetFrameTime();
-    ParameterSetValue(
-        state->parameters, "wave_width",
-        ClampF32(ParameterGetValue(state->parameters, "wave_width") +
-                     0.1f * GetMouseWheelMove(),
-                 1.f, 100.f));
     state->window_position =
         HMM_V2(GetWindowPosition().x, GetWindowPosition().y);
     state->master_volume = GetMasterVolume();
@@ -447,7 +433,10 @@ StateRender() {
         RendererSetRenderSize(state->renderer_data, state->screen_size);
 
         Render();
-        RenderUI();
+
+        if (state->render_ui) {
+            RenderUI();
+        }
     } break;
 
     case StateCondition_LOAD: {
@@ -562,10 +551,13 @@ Deserialize() {
                 fread(&min, sizeof(F32), 1, fptr);
                 fread(&max, sizeof(F32), 1, fptr);
 
-                ParameterSet(state->parameters, &(Parameter){.name = name,
-                                                             .value = value,
-                                                             .min = min,
-                                                             .max = max});
+                if (hashmap_get(state->parameters,
+                                &(Parameter){.name = name})) {
+                    ParameterSet(state->parameters, &(Parameter){.name = name,
+                                                                 .value = value,
+                                                                 .min = min,
+                                                                 .max = max});
+                }
             }
         }
         fclose(fptr);
@@ -593,7 +585,7 @@ RenderParameterSlider(const char *name,
 static void
 RenderUI() {
     if (state->ui) {
-        if (GuiButton((Rectangle){10, 10, 25, 25}, "#120#")) {
+        if (GuiButton((Rectangle){10, 10, 100, 25}, "Close UI")) {
             state->ui = false;
         }
 
@@ -601,10 +593,36 @@ RenderUI() {
 
         Parameter *parameter;
         U32        _, i = 0;
+
+        F32 max_offset = 0.f;
         while (ParameterIter(state->parameters, &_, &parameter)) {
+            if (!parameter) {
+                continue;
+            }
+
+            F32 offset =
+                RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, 20),
+                                         parameter->name, 20, 1))
+                    .X;
+
+            if (offset > max_offset) {
+                max_offset = offset;
+            }
+        }
+
+        parameter = 0;
+        _ = 0;
+        i = 0;
+        while (ParameterIter(state->parameters, &_, &parameter)) {
+            if (!parameter) {
+                continue;
+            }
+
+            F32 offset = max_offset + 110;
+
             RenderParameterSlider(
                 parameter->name,
-                (Rectangle){400, i * 30 + top_padding, 200, 20},
+                (Rectangle){offset, i * 30 + top_padding, 200, 20},
                 parameter->name, TextFormat("[%.2f]", parameter->value),
                 parameter->min, parameter->max);
             ++i;
@@ -614,6 +632,10 @@ RenderUI() {
         _ = 0;
         i = 0;
         while (ProcedureIter(state->procedures, &_, &proc)) {
+            if (!proc) {
+                continue;
+            }
+
             if (GuiToggle((Rectangle){state->screen_size.Width - 250,
                                       i * 30 + top_padding, 200, 20},
                           TextFormat("%s", proc->name), &proc->active)) {
@@ -629,7 +651,7 @@ RenderUI() {
             state->condition = StateCondition_RECORDING;
         }
     } else {
-        if (GuiButton((Rectangle){10, 10, 25, 25}, "#121#")) {
+        if (GuiButton((Rectangle){10, 10, 100, 25}, "Open UI")) {
             state->ui = true;
         }
     }
@@ -653,8 +675,8 @@ static void
 Render() {
     ApiPreRender(state->api_data, state);
 
-    ProcedureCall(state->procedures, "circle_frequencies");
-    ProcedureCall(state->procedures, "normal_frequencies");
+    _ProcedureCall(state->def_procs.circle_frequencies);
+    _ProcedureCall(state->def_procs.normal_frequencies);
 
     ApiRender(state->api_data, state);
 }
@@ -705,8 +727,8 @@ UpdateRecording() {
     SignalsProcessSamples(
         LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT, state->frequencies,
         &state->frequency_count, 1 / (F32)RENDER_FPS,
-        (U32)ParameterGetValue(state->parameters, "smoothing"), state->filter,
-        state->filter_count, ParameterGetValue(state->parameters, "velocity"),
+        (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
+        state->filter_count, _ParameterGetValue(state->def_params.velocity),
         state->zero_frequencies);
 }
 
@@ -715,8 +737,8 @@ SetFrequencyCount() {
     U32 freq_count;
     SignalsProcessSamples(
         LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0,
-        (U32)ParameterGetValue(state->parameters, "smoothing"), state->filter,
-        state->filter_count, ParameterGetValue(state->parameters, "velocity"),
+        (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
+        state->filter_count, _ParameterGetValue(state->def_params.velocity),
         state->zero_frequencies);
 
     if (freq_count != state->frequency_count) {
@@ -748,7 +770,7 @@ GetDroppedFiles() {
             AttachAudioStreamProcessor(state->music.stream, FrameCallback);
             ret = true;
 
-            SetWindowTitle(TextFormat("Lynx - %s", dropped_files.paths[0]));
+            SetWindowTitle(TextFormat("Apollo - %s", dropped_files.paths[0]));
         }
     }
 

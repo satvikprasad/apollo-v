@@ -8,6 +8,8 @@
 #include "handmademath.h"
 #include "hashmap.h"
 #include "loopback.h"
+#include "parameter.h"
+#include "procedures.h"
 #include "raylib.h"
 #include "renderer.h"
 #include "server.h"
@@ -82,6 +84,17 @@ typedef struct State {
         U32  wave_cursor;
     } record_data;
 
+    struct {
+        _Parameter smoothing;
+        _Parameter velocity;
+        _Parameter master_volume;
+    } def_params;
+
+    struct {
+        _Procedure circle_frequencies;
+        _Procedure normal_frequencies;
+    } def_procs;
+
     F32 *filter;
     U32  filter_count;
 
@@ -91,6 +104,7 @@ typedef struct State {
     HM_Hashmap *animations;
     HM_Hashmap *procedures;
 
+    B8 render_ui;
     B8 ui;
     B8 loopback;
     B8 should_close;

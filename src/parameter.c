@@ -53,9 +53,11 @@ ParameterGetValue(HM_Hashmap *params, const char *name) {
     return 0.0f;
 }
 
-void
+_Parameter
 ParameterSet(HM_Hashmap *params, Parameter *param) {
     hashmap_set(params, param);
+
+    return ParameterGeneratePtr(params, param->name);
 }
 
 void
@@ -73,4 +75,23 @@ ParameterSetValue(HM_Hashmap *params, const char *name, F32 value) {
 U32
 ParameterCount(HM_Hashmap *params) {
     return hashmap_count(params);
+}
+
+void
+_ParameterSetValue(_Parameter param, F32 value) {
+    ParameterSetValue(param.parameters, param.name, value);
+}
+
+F32
+_ParameterGetValue(_Parameter param) {
+    return ParameterGetValue(param.parameters, param.name);
+}
+
+_Parameter
+ParameterGeneratePtr(HM_Hashmap *params, const char *name) {
+    _Parameter param = (_Parameter){.parameters = params};
+
+    memcpy(param.name, name, strlen(name) + 1);
+
+    return param;
 }

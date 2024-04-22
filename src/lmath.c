@@ -3,7 +3,8 @@
 #include "handmademath.h"
 #include "raylib.h"
 
-F32 MinF32(F32 a, F32 b) {
+F32
+MinF32(F32 a, F32 b) {
     if (a < b) {
         return a;
     }
@@ -11,7 +12,8 @@ F32 MinF32(F32 a, F32 b) {
     return b;
 }
 
-F32 MaxF32(F32 a, F32 b) {
+F32
+MaxF32(F32 a, F32 b) {
     if (a > b) {
         return a;
     }
@@ -19,7 +21,8 @@ F32 MaxF32(F32 a, F32 b) {
     return b;
 }
 
-F32 ClampF32(F32 v, F32 min, F32 max) {
+F32
+ClampF32(F32 v, F32 min, F32 max) {
     if (v < min) {
         v = min;
     }
@@ -31,7 +34,8 @@ F32 ClampF32(F32 v, F32 min, F32 max) {
     return v;
 }
 
-I32 ClampI32(I32 v, I32 min, I32 max) {
+I32
+ClampI32(I32 v, I32 min, I32 max) {
     if (v < min) {
         v = min;
     }
@@ -43,6 +47,12 @@ I32 ClampI32(I32 v, I32 min, I32 max) {
     return v;
 }
 
-HMM_Vec2 RayToHMMV2(Vector2 v) { return HMM_V2(v.x, v.y); }
+HMM_Vec2
+RayToHMMV2(Vector2 v) {
+    return HMM_V2(v.x, v.y);
+}
 
-Vector2 HMMToRayV2(HMM_Vec2 v) { return (Vector2){v.X, v.Y}; }
+Vector2
+HMMToRayV2(HMM_Vec2 v) {
+    return (Vector2){v.X, v.Y};
+}

@@ -59,6 +59,17 @@ ProcedureAdd_(HM_Hashmap       *procs,
     return procedure;
 }
 
+_Procedure
+_ProcedureAdd(HM_Hashmap       *procs,
+              const char       *name,
+              void             *user_data,
+              ProcedureCallback proc,
+              MemoryArena      *arena) {
+    ProcedureAdd(procs, name, user_data, proc, arena);
+
+    return ProcedureGeneratePtr(procs, name);
+}
+
 void
 ProcedureCall(HM_Hashmap *procs, const char *name) {
     Procedure *proc =
@@ -69,6 +80,11 @@ ProcedureCall(HM_Hashmap *procs, const char *name) {
             proc->callback(proc->user_data);
         }
     }
+}
+
+void
+_ProcedureCall(_Procedure proc) {
+    ProcedureCall(proc.procedures, proc.name);
 }
 
 void
@@ -104,3 +120,13 @@ typedef struct StateWrapperData {
 
 void
 ProcedureStateWrapper(void *user_data) {}
+
+_Procedure
+ProcedureGeneratePtr(HM_Hashmap *procs, const char *name) {
+    _Procedure proc = (_Procedure){.procedures = procs};
+
+    memcpy(proc.name, name, strlen(name) + 1);
+
+    return proc;
+}
+

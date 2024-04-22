@@ -171,7 +171,8 @@ ApiInitialise(const char *api_fp, void *state, ApiData *api) {
         FSGetHomeDirectory(home);
 
         char buffer[512];
-        snprintf(buffer, 512, "%s/lua/?.lua;%s/.config/vizzy/?.lua", cwd, home);
+        snprintf(buffer, 512, "%s/lua/?.lua;%s/.config/apollo/?.lua", cwd,
+                 home);
 
         SetPath(api->lua, buffer);
     }
