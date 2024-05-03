@@ -170,8 +170,11 @@ ApiInitialise(const char *api_fp, void *state, ApiData *api) {
         char home[512];
         FSGetHomeDirectory(home);
 
+        char apollo[512];
+        FSGetApolloDirectory(apollo);
+
         char buffer[512];
-        snprintf(buffer, 512, "%s/lua/?.lua;%s/.config/vizzy/?.lua", cwd, home);
+        snprintf(buffer, 512, "%s/lua/?.lua;%s/?.lua", cwd, apollo);
 
         SetPath(api->lua, buffer);
     }
@@ -687,6 +690,10 @@ L_BindShader(lua_State *L) {
     const char *fragment_shader;
     const char *vertex_shader;
 
+    char apollo[512];
+
+    FSGetApolloDirectory(apollo);
+
     if (!lua_isstring(p_state->api_data->lua, 1)) {
         if (!lua_isnumber(L, 2)) {
             ApiErrorFunction(p_state->api_data->lua, bind_shader,
@@ -696,7 +703,8 @@ L_BindShader(lua_State *L) {
 
         vertex_shader = NULL;
     } else {
-        vertex_shader = lua_tostring(p_state->api_data->lua, 1);
+        vertex_shader = TextFormat("%s/shaders/%s", apollo,
+                                   lua_tostring(p_state->api_data->lua, 1));
     }
 
     if (!lua_isstring(p_state->api_data->lua, 2)) {
@@ -709,7 +717,8 @@ L_BindShader(lua_State *L) {
 
         fragment_shader = NULL;
     } else {
-        fragment_shader = lua_tostring(p_state->api_data->lua, 2);
+        fragment_shader = TextFormat("%s/shaders/%s", apollo,
+                                     lua_tostring(p_state->api_data->lua, 2));
     }
 
     ApiShader seek = {};

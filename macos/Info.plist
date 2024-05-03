@@ -3,17 +3,19 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleName</key>
-	<string>Vizzy</string>
+	<string>${NAME}</string>
     <key>CFBundleDisplayName</key>
-    <string>Vizzy</string>
+    <string>${NAME}</string>
     <key>CFBundleIdentifier</key>
-    <string>com.satvikprasad.Vizzy</string>
+    <string>com.satvikprasad.${NAME}</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleSignature</key>
     <string>ttxt</string>
     <key>CFBundleExecutable</key>
-    <string>Vizzy</string>
+    <string>${NAME}</string>
+    <key>CFBundleIconFile</key>
+    <string>${NAME}.icns</string>
 </dict>
 </plist>
 

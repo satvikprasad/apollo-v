@@ -13,6 +13,11 @@ typedef struct Procedure {
     void             *user_data;
 } Procedure;
 
+typedef struct _Procedure {
+    char        name[512];
+    HM_Hashmap *procedures;
+} _Procedure;
+
 HM_Hashmap *
 ProcedureCreate();
 
@@ -28,8 +33,18 @@ ProcedureAdd_(HM_Hashmap       *procedures,
               ProcedureCallback callback,
               MemoryArena      *arena);
 
+_Procedure
+_ProcedureAdd(HM_Hashmap       *procs,
+              const char       *name,
+              void             *user_data,
+              ProcedureCallback proc,
+              MemoryArena      *arena);
+
 void
 ProcedureCall(HM_Hashmap *procedures, const char *name);
+
+void
+_ProcedureCall(_Procedure proc);
 
 void
 ProcedureCallAll(HM_Hashmap *procedures);
@@ -39,3 +54,6 @@ ProcedureIter(HM_Hashmap *procedures, U32 *iter, Procedure **procedure);
 
 void
 ProcedureToggle(HM_Hashmap *procs, const char *name);
+
+_Procedure
+ProcedureGeneratePtr(HM_Hashmap *procs, const char *name);
