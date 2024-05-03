@@ -14,3 +14,10 @@ FSFormatLuaDirectory(const char *path);
 
 const char *
 FSFormatDataDirectory(const char *path);
+
+void
+FSGetConfigDirectory(char *path);
+
+void
+FSGetApolloDirectory(char *path);
+

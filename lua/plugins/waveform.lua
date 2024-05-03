@@ -10,7 +10,7 @@ local font_size = A.param.add("FontSize", 20, 10, 100)
 local wave_width = A.param.add("WaveWidth", 10, 1, 100)
 
 local red_waveform_proc = A.proc.add("RedWaveform", function()
-    A.bind_shader(0, "assets/shaders/red.fs")
+    A.bind_shader(0, "red.fs")
 
     A.renderer.draw_lined_poly(S.vertices, S.indices, {255, 255, 255, 255})
 

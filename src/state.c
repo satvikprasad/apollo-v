@@ -89,15 +89,21 @@ UnloadStateFont(StateFont font) {
 
 static void
 CreateDirectories() {
-    char home[512];
-    FSGetHomeDirectory(home);
-
-    if (!DirectoryExists(TextFormat("%s/.config", home))) {
-        FSCreateDirectory(TextFormat("%s/.config", home));
+    char config[512];
+    FSGetConfigDirectory(config);
+    if (!DirectoryExists(config)) {
+        FSCreateDirectory(config);
     }
 
-    if (!DirectoryExists(TextFormat("%s/.config/apollo", home))) {
-        FSCreateDirectory(TextFormat("%s/.config/apollo", home));
+    char apollo[512];
+    FSGetApolloDirectory(apollo);
+
+    if (!DirectoryExists(apollo)) {
+        FSCreateDirectory(apollo);
+    }
+
+    if (!DirectoryExists(TextFormat("%s/shaders", apollo))) {
+        FSCreateDirectory(TextFormat("%s/shaders", apollo));
     }
 }
 
@@ -156,9 +162,9 @@ StateInitialise() {
                           NormalFrequenciesProc, &state->arena);
     }
 
-    char home[512];
-    FSGetHomeDirectory(home);
-    ApiInitialise(TextFormat("%s/%s", home, ".config/apollo/init.lua"), state,
+    char apollo[512];
+    FSGetApolloDirectory(apollo);
+    ApiInitialise(TextFormat("%s/%s", apollo, "init.lua"), state,
                   state->api_data);
 
     if (Deserialize()) {

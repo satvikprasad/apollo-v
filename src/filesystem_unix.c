@@ -45,3 +45,19 @@ FSFormatDataDirectory(const char *path) {
 
     return TextFormat("%s/.config/apollo/%s", home, path);
 }
+
+void
+FSGetConfigDirectory(char *path) {
+    char home[512];
+    FSGetHomeDirectory(home);
+
+    strcpy(path, TextFormat("%s/.config", home));
+}
+
+void
+FSGetApolloDirectory(char *path) {
+    char home[512];
+    FSGetHomeDirectory(home);
+
+    strcpy(path, TextFormat("%s/.config/apollo", home));
+}
