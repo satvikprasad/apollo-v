@@ -2,6 +2,7 @@
 
 #include <complex.h>
 
+#include "animation.h"
 #include "api.h"
 #include "arena.h"
 #include "defines.h"
@@ -94,6 +95,13 @@ typedef struct State {
         _Procedure circle_frequencies;
         _Procedure normal_frequencies;
     } def_procs;
+
+    struct {
+        _Animation *exiting;
+        _Animation *recording;
+        _Animation *end_recording;
+        _Animation *fade_in;
+    } def_anims;
 
     F32 *filter;
     U32  filter_count;

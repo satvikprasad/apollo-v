@@ -107,6 +107,16 @@ CreateDirectories() {
     }
 }
 
+static void
+FadeInAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    anim->val = sqrtf(1.0f - anim->elapsed / *(F32 *)user_data);
+
+    if (anim->val < 0.0) {
+        anim->val = 0.0f;
+        anim->finished = true;
+    }
+}
+
 void
 StateInitialise() {
     CreateDirectories();
@@ -210,6 +220,10 @@ StateInitialise() {
     RendererInitialise(state->renderer_data);
     LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
+
+    state->def_anims.fade_in =
+        AnimationsAdd(state->animations, "fade_in", &(F32){0.74f},
+                      FadeInAnimationUpdate, &state->arena);
 }
 
 static void
@@ -251,7 +265,7 @@ AddMetricCallback(void *user_data, char *response) {
 }
 
 static void
-FadeAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+FadeAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = anim->elapsed / *(F32 *)user_data;
 
     if (anim->val > 1.0) {
@@ -267,7 +281,7 @@ EndRecordingThread(void *data) {
 }
 
 void
-EndRecordingAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+EndRecordingAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = (0.5f - anim->elapsed) / 0.5f;
 
     if (anim->elapsed >= 0.5) {
@@ -278,34 +292,40 @@ EndRecordingAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
 }
 
 void
+BeginExiting() {
+    ServerPostAsync(state->server_data, "add-metric",
+                    TextFormat("{\"time\": %f}", GetTime()),
+                    &state->should_close, AddMetricCallback, &state->arena);
+
+    state->condition = StateCondition_EXITING;
+
+    state->def_anims.exiting =
+        AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
+                      FadeAnimationUpdate, &state->arena);
+}
+
+void
 StateUpdate() {
     ApiUpdate(state->api_data, state);
     AnimationsUpdate(state->animations);
 
     SetFrequencyCount();
 
-    if (IsKeyPressed(KEY_ESCAPE)) {
-        if (state->condition != StateCondition_RECORDING) {
-            ServerPostAsync(state->server_data, "add-metric",
-                            TextFormat("{\"time\": %f}", GetTime()),
-                            &state->should_close, AddMetricCallback,
-                            &state->arena);
-
-            state->condition = StateCondition_EXITING;
-
-            AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
-                          FadeAnimationUpdate, &state->arena);
-        } else {
+    if (IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+        if (state->condition == StateCondition_RECORDING) {
             if (!state->recording_thread) {
                 state->recording_thread = ThreadAlloc(&state->arena);
             }
 
             ThreadCreate(state->recording_thread, EndRecordingThread, state);
 
-            AnimationsAdd(state->animations, "end_recording", NULL,
-                          EndRecordingAnimationUpdate, &state->arena);
+            state->def_anims.end_recording =
+                AnimationsAdd(state->animations, "end_recording", NULL,
+                              EndRecordingAnimationUpdate, &state->arena);
 
             ResumeMusicStream(state->music);
+        } else {
+            BeginExiting();
         }
     }
 
@@ -359,8 +379,9 @@ StateUpdate() {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
 
-            AnimationsAdd(state->animations, "recording", &(F32){0.4f},
-                          FadeAnimationUpdate, &state->arena);
+            state->def_anims.recording =
+                AnimationsAdd(state->animations, "recording", &(F32){0.4f},
+                              FadeAnimationUpdate, &state->arena);
         }
 
         if (IsKeyPressed(KEY_M)) {
@@ -429,7 +450,8 @@ StateRender() {
             XLargeFont(state->font), TextFormat("Exiting%s", buf),
             HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
             (Color){255, 255, 255,
-                    255 * AnimationsLoad(state->animations, "exiting")});
+                    255 * AnimationsLoad(state->animations,
+                                         state->def_anims.exiting->name)});
     } break;
     case StateCondition_NORMAL: {
         if (!IsMusicReady(state->music)) {
@@ -458,8 +480,10 @@ StateRender() {
 
         F64 alpha = 1.0f;
 
-        AnimationsApply(state->animations, "recording", &alpha);
-        AnimationsApply(state->animations, "end_recording", &alpha);
+        AnimationsApply(state->animations, state->def_anims.recording->name,
+                        &alpha);
+        AnimationsApply(state->animations, state->def_anims.end_recording->name,
+                        &alpha);
 
         RendererDrawTextCenter(
             XLargeFont(state->font), TextFormat("Now recording%s", buf),
@@ -479,6 +503,13 @@ StateRender() {
     default:
         printf("Unhandled case\n");
         break;
+    }
+
+    if (AnimationsExists_(state->animations, state->def_anims.fade_in)) {
+        DrawRectangle(0, 0, state->screen_size.Width, state->screen_size.Height,
+                      (Color){0, 0, 0,
+                              255 * AnimationsLoad_(state->animations,
+                                                    state->def_anims.fade_in)});
     }
 
     EndDrawing();
@@ -793,7 +824,7 @@ StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
 
 B8
 StateShouldClose() {
-    return state->should_close || WindowShouldClose();
+    return state->should_close;
 }
 
 static void
