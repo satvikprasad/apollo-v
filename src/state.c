@@ -201,6 +201,8 @@ StateInitialise() {
     state->filter = ArenaPushArray(&state->arena, state->filter_count, F32);
     CreateFilter(state->filter, state->filter_count);
 
+    GuiLoadStyle(FSFormatAssetsDirectory("styles/apollo.rgs"));
+
     GuiSetFont(FontClosestToSize(state->font, 20));
     GuiSetStyle(DEFAULT, TEXT_SIZE,
                 FontClosestToSize(state->font, 20).baseSize);
@@ -621,51 +623,111 @@ RenderParameterSlider(const char *name,
 
 static void
 RenderUI() {
+    F32        padding = 20;
+    F32        button_height = 25;
+    F32        font_size = 20;
+    F32        toggle_width = 25;
+    Parameter *parameter;
+    U32        _, i = 0;
+
+    F32 max_loffset = 0.f;
+    F32 max_roffset = 0.f;
+    while (ParameterIter(state->parameters, &_, &parameter)) {
+        if (!parameter) {
+            continue;
+        }
+
+        F32 offset =
+            RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, font_size),
+                                     parameter->name, font_size, 1))
+                .X;
+
+        if (offset > max_loffset) {
+            max_loffset = offset;
+        }
+
+        offset =
+            RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, font_size),
+                                     TextFormat("[%.2f]", parameter->value),
+                                     font_size, 1))
+                .X;
+
+        if (offset > max_roffset) {
+            max_roffset = offset;
+        }
+    }
+
+    // Measure procedure buttons
+    F32        procedure_button_width = 200;
+    Procedure *proc;
+    _ = 0;
+    i = 0;
+    while (ProcedureIter(state->procedures, &_, &proc)) {
+        if (!proc) {
+            continue;
+        }
+
+        F32 width = MeasureTextEx(FontClosestToSize(state->font, font_size),
+                                  TextFormat("%s", proc->name), font_size, 1)
+                        .x;
+
+        if (width > procedure_button_width) {
+            procedure_button_width = width;
+        }
+
+        ++i;
+    }
+    F32 left = max_loffset + toggle_width + padding;
+    F32 param_width = 200;
+    F32 max_param_width = (state->screen_size.Width - procedure_button_width -
+                           padding - max_roffset) -
+                          (left);
+
+    if (toggle_width + procedure_button_width + padding * 3 >
+        state->screen_size.Width) {
+        Rectangle button = {padding, padding, toggle_width, button_height};
+
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#137#")) {
+        }
+
+        DrawRectangleRec(button, (Color){0, 0, 0, 100});
+
+        return;
+    }
+
     if (state->ui) {
-        if (GuiButton((Rectangle){10, 10, 100, 25}, "Close UI")) {
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#121#")) {
             state->ui = false;
         }
 
-        F32 top_padding = 10;
+        if (max_param_width > 50) {
+            parameter = 0;
+            _ = 0;
+            i = 0;
+            while (ParameterIter(state->parameters, &_, &parameter)) {
+                if (!parameter) {
+                    continue;
+                }
 
-        Parameter *parameter;
-        U32        _, i = 0;
-
-        F32 max_offset = 0.f;
-        while (ParameterIter(state->parameters, &_, &parameter)) {
-            if (!parameter) {
-                continue;
-            }
-
-            F32 offset =
-                RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, 20),
-                                         parameter->name, 20, 1))
-                    .X;
-
-            if (offset > max_offset) {
-                max_offset = offset;
+                RenderParameterSlider(
+                    parameter->name,
+                    (Rectangle){left,
+                                i * (button_height + padding / 2) + padding,
+                                param_width > max_param_width ? max_param_width
+                                                              : param_width,
+                                button_height},
+                    parameter->name, TextFormat("[%.2f]", parameter->value),
+                    parameter->min, parameter->max);
+                ++i;
             }
         }
 
-        parameter = 0;
-        _ = 0;
-        i = 0;
-        while (ParameterIter(state->parameters, &_, &parameter)) {
-            if (!parameter) {
-                continue;
-            }
-
-            F32 offset = max_offset + 110;
-
-            RenderParameterSlider(
-                parameter->name,
-                (Rectangle){offset, i * 30 + top_padding, 200, 20},
-                parameter->name, TextFormat("[%.2f]", parameter->value),
-                parameter->min, parameter->max);
-            ++i;
-        }
-
-        Procedure *proc;
+        // Render procedure buttons
+        proc = 0;
         _ = 0;
         i = 0;
         while (ProcedureIter(state->procedures, &_, &proc)) {
@@ -673,22 +735,28 @@ RenderUI() {
                 continue;
             }
 
-            if (GuiToggle((Rectangle){state->screen_size.Width - 250,
-                                      i * 30 + top_padding, 200, 20},
-                          TextFormat("%s", proc->name), &proc->active)) {
+            if (GuiToggle(
+                    (Rectangle){state->screen_size.Width -
+                                    procedure_button_width - padding,
+                                i * (button_height + padding / 2) + padding,
+                                procedure_button_width - padding,
+                                button_height},
+                    TextFormat("%s", proc->name), &proc->active)) {
                 ProcedureToggle(state->procedures, proc->name);
             }
             ++i;
         }
 
         if (GuiButton(
-                (Rectangle){state->screen_size.Width - 35, top_padding, 25, 25},
+                (Rectangle){state->screen_size.Width - 35, padding, 25, 25},
                 "#11#")) {
             BeginRecording();
             state->condition = StateCondition_RECORDING;
         }
     } else {
-        if (GuiButton((Rectangle){10, 10, 100, 25}, "Open UI")) {
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#120#")) {
             state->ui = true;
         }
     }
