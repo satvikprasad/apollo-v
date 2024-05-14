@@ -21,3 +21,5 @@ FSGetConfigDirectory(char *path);
 void
 FSGetApolloDirectory(char *path);
 
+B8
+FSCanRunCMD(const char *cmd);

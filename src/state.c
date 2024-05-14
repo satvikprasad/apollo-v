@@ -1,3 +1,5 @@
+// TODO: Polish Pop-ups, refractor repeated code
+
 #include "state.h"
 
 #include <math.h>
@@ -23,6 +25,7 @@
 #include "server.h"
 #include "signals.h"
 #include "thread.h"
+#include "ui.h"
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
@@ -307,6 +310,55 @@ BeginExiting() {
 }
 
 void
+PopUpEnterAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    F32 length = *(F32 *)user_data;
+
+    anim->val = sin((PI * anim->elapsed) / (2 * length));
+
+    if (anim->elapsed >= length) {
+        anim->finished = true;
+    }
+}
+
+void
+StateAddPopUp(const char *text) {
+    memcpy(state->pop_ups + 1, state->pop_ups,
+           sizeof(StatePopUp) * (MAX_POP_UPS - 1));
+
+    strcpy(state->pop_ups[0].text, text);
+
+    if (state->pop_up_count < MAX_POP_UPS) {
+        state->pop_up_count++;
+    }
+
+    state->def_anims.pop_up =
+        AnimationsAdd(state->animations, "pop up", &(F32){0.5},
+                      PopUpEnterAnimationUpdate, &state->arena);
+}
+
+void
+PopUpExitAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    F32 length = *(F32 *)user_data;
+
+    anim->val = sin((PI * (length - anim->elapsed)) / (2 * length));
+
+    if (anim->elapsed >= length) {
+        state->pop_up_count--;
+        memcpy(state->pop_ups, state->pop_ups + 1,
+               sizeof(StatePopUp) * (MAX_POP_UPS - 1));
+
+        anim->finished = true;
+    }
+}
+
+void
+StateRemovePopUp() {
+    state->def_anims.pop_up_exit =
+        AnimationsAdd(state->animations, "pop up exit", &(F32){0.25},
+                      PopUpExitAnimationUpdate, &state->arena);
+}
+
+void
 StateUpdate() {
     ApiUpdate(state->api_data, state);
     AnimationsUpdate(state->animations);
@@ -344,6 +396,7 @@ StateUpdate() {
 
         UpdateMusicStream(state->music);
 
+#if 0
         if (IsKeyPressed(KEY_L)) {
             if (state->loopback) {
                 AttachAudioStreamProcessor(state->music.stream, FrameCallback);
@@ -355,6 +408,7 @@ StateUpdate() {
                 state->loopback = true;
             }
         }
+#endif
 
         if (IsKeyPressed(KEY_SPACE)) {
             if (IsMusicStreamPlaying(state->music)) {
@@ -379,11 +433,6 @@ StateUpdate() {
 
         if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
             BeginRecording();
-            state->condition = StateCondition_RECORDING;
-
-            state->def_anims.recording =
-                AnimationsAdd(state->animations, "recording", &(F32){0.4f},
-                              FadeAnimationUpdate, &state->arena);
         }
 
         if (IsKeyPressed(KEY_M)) {
@@ -466,6 +515,99 @@ StateRender() {
 
         if (state->render_ui) {
             RenderUI();
+
+            if (state->pop_up_count > 0) {
+                F32 padding = 25;
+                F32 pop_up_height = 50;
+                F32 pop_up_width = MaxF32(
+                    100, MeasureTextEx(FontClosestToSize(state->font, 20),
+                                       state->pop_ups[0].text, 20, 1)
+                                 .x +
+                             20);
+
+                F32 offset = pop_up_height + padding;
+                if (AnimationsExists_(state->animations,
+                                      state->def_anims.pop_up)) {
+                    offset = (pop_up_height + padding) *
+                             AnimationsLoad_(state->animations,
+                                             state->def_anims.pop_up);
+                } else if (AnimationsExists_(state->animations,
+                                             state->def_anims.pop_up_exit)) {
+                    offset = (pop_up_height + padding) *
+                             AnimationsLoad_(state->animations,
+                                             state->def_anims.pop_up_exit);
+                }
+
+                F32 border_size = 2;
+
+                for (U32 i = 1; i < state->pop_up_count; ++i) {
+                    DrawRectangleRec(
+                        (Rectangle){state->screen_size.Width - padding -
+                                        pop_up_width - border_size,
+                                    state->screen_size.Height -
+                                        (pop_up_height + padding) - border_size,
+                                    pop_up_width + 2 * border_size,
+                                    pop_up_height + 2 * border_size},
+                        (Color){204, 204, 204, 255});
+
+                    DrawRectangleRec((Rectangle){state->screen_size.Width -
+                                                     padding - pop_up_width,
+                                                 state->screen_size.Height -
+                                                     (pop_up_height + padding),
+                                                 pop_up_width, pop_up_height},
+                                     (Color){137, 116, 185, 255});
+
+                    RendererDrawTextCenter(
+                        FontClosestToSize(state->font, 20),
+                        state->pop_ups[i].text,
+                        HMM_V2(state->screen_size.Width - padding * 1.5 -
+                                   pop_up_width / 2,
+                               state->screen_size.Height -
+                                   (pop_up_height + padding) +
+                                   pop_up_height / 2),
+                        WHITE);
+                    GuiButton(
+                        (Rectangle){state->screen_size.Width - padding * 2.5,
+                                    state->screen_size.Height -
+                                        (pop_up_height + padding) + padding / 2,
+                                    padding, padding},
+                        "X");
+                }
+
+                DrawRectangleRec((Rectangle){state->screen_size.Width -
+                                                 padding - pop_up_width -
+                                                 border_size,
+                                             state->screen_size.Height -
+                                                 offset - border_size,
+                                             pop_up_width + 2 * border_size,
+                                             pop_up_height + 2 * border_size},
+                                 (Color){204, 204, 204, 255});
+
+                DrawRectangleRec((Rectangle){state->screen_size.Width -
+                                                 padding - pop_up_width,
+                                             state->screen_size.Height - offset,
+                                             pop_up_width, pop_up_height},
+                                 (Color){137, 116, 185, 255});
+
+                RendererDrawTextCenter(
+                    FontClosestToSize(state->font, 20), state->pop_ups[0].text,
+                    HMM_V2(state->screen_size.Width - padding * 1.5 -
+                               pop_up_width / 2,
+                           state->screen_size.Height - offset +
+                               pop_up_height / 2),
+                    WHITE);
+
+                if (GuiButton(
+                        (Rectangle){state->screen_size.Width - padding * 2.5,
+                                    state->screen_size.Height - offset +
+                                        padding / 2,
+                                    padding, padding},
+                        "X") &&
+                    !AnimationsExists_(state->animations,
+                                       state->def_anims.pop_up_exit)) {
+                    StateRemovePopUp();
+                }
+            }
         }
     } break;
 
@@ -483,8 +625,6 @@ StateRender() {
         F64 alpha = 1.0f;
 
         AnimationsApply(state->animations, state->def_anims.recording->name,
-                        &alpha);
-        AnimationsApply(state->animations, state->def_anims.end_recording->name,
                         &alpha);
 
         RendererDrawTextCenter(
@@ -630,60 +770,17 @@ RenderUI() {
     Parameter *parameter;
     U32        _, i = 0;
 
-    F32 max_loffset = 0.f;
-    F32 max_roffset = 0.f;
-    while (ParameterIter(state->parameters, &_, &parameter)) {
-        if (!parameter) {
-            continue;
-        }
+    UIToggleMenuData data =
+        UIMeasureToggleMenu(state->parameters, state->procedures, state->font,
+                            font_size, padding, toggle_width);
 
-        F32 offset =
-            RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, font_size),
-                                     parameter->name, font_size, 1))
-                .X;
-
-        if (offset > max_loffset) {
-            max_loffset = offset;
-        }
-
-        offset =
-            RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, font_size),
-                                     TextFormat("[%.2f]", parameter->value),
-                                     font_size, 1))
-                .X;
-
-        if (offset > max_roffset) {
-            max_roffset = offset;
-        }
-    }
-
-    // Measure procedure buttons
-    F32        procedure_button_width = 200;
-    Procedure *proc;
-    _ = 0;
-    i = 0;
-    while (ProcedureIter(state->procedures, &_, &proc)) {
-        if (!proc) {
-            continue;
-        }
-
-        F32 width = MeasureTextEx(FontClosestToSize(state->font, font_size),
-                                  TextFormat("%s", proc->name), font_size, 1)
-                        .x;
-
-        if (width > procedure_button_width) {
-            procedure_button_width = width;
-        }
-
-        ++i;
-    }
-    F32 left = max_loffset + toggle_width + padding;
+    F32 left = data.max_loffset + toggle_width + padding;
     F32 param_width = 200;
-    F32 max_param_width = (state->screen_size.Width - procedure_button_width -
-                           padding - max_roffset) -
+    F32 max_param_width = (state->screen_size.Width - data.proc_button_width -
+                           padding - data.max_roffset) -
                           (left);
 
-    if (toggle_width + procedure_button_width + padding * 3 >
+    if (toggle_width + data.proc_button_width + padding * 3 >
         state->screen_size.Width) {
         Rectangle button = {padding, padding, toggle_width, button_height};
 
@@ -727,7 +824,7 @@ RenderUI() {
         }
 
         // Render procedure buttons
-        proc = 0;
+        Procedure *proc = 0;
         _ = 0;
         i = 0;
         while (ProcedureIter(state->procedures, &_, &proc)) {
@@ -737,9 +834,9 @@ RenderUI() {
 
             if (GuiToggle(
                     (Rectangle){state->screen_size.Width -
-                                    procedure_button_width - padding,
+                                    data.proc_button_width - padding,
                                 i * (button_height + padding / 2) + padding,
-                                procedure_button_width - padding,
+                                data.proc_button_width - padding,
                                 button_height},
                     TextFormat("%s", proc->name), &proc->active)) {
                 ProcedureToggle(state->procedures, proc->name);
@@ -751,7 +848,6 @@ RenderUI() {
                 (Rectangle){state->screen_size.Width - 35, padding, 25, 25},
                 "#11#")) {
             BeginRecording();
-            state->condition = StateCondition_RECORDING;
         }
     } else {
         if (GuiButton(
@@ -788,13 +884,27 @@ Render() {
 
 static void
 BeginRecording() {
-    memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
-    memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
+    state->condition = StateCondition_RECORDING;
+
+    if (!FSCanRunCMD("ffmpeg")) {
+        state->condition = StateCondition_NORMAL;
+        StateAddPopUp("Please ensure FFMPEG is installed. Can't record :(");
+        return;
+    }
 
     HMM_Vec2 render_size = HMM_V2(state->renderer_data->screen.texture.width,
                                   state->renderer_data->screen.texture.height);
 
     state->ffmpeg = FFMPEGStart(render_size, RENDER_FPS, state->music_fp);
+
+    if (state->ffmpeg < 0) {
+        state->condition = StateCondition_NORMAL;
+        return;
+    }
+
+    memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
+    memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
+
     state->record_start = GetTime();
 
     state->record_data.wave = LoadWave(state->music_fp);
@@ -802,6 +912,10 @@ BeginRecording() {
     state->record_data.wave_cursor = 0;
 
     PauseMusicStream(state->music);
+
+    state->def_anims.recording =
+        AnimationsAdd(state->animations, "recording", &(F32){0.4f},
+                      FadeAnimationUpdate, &state->arena);
 }
 
 static void

@@ -3,6 +3,7 @@
 #include "hashmap.h"
 #include "lmath.h"
 #include "raylib.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +60,15 @@ AnimationsAdd_(HM_Hashmap *anims,
                U32         user_data_size,
                void (*update)(_Animation *anim, void *user_data, F64 dt),
                MemoryArena *arena) {
+    if (AnimationsExists(anims, name)) {
+        _Animation *anim = (_Animation *)hashmap_get(
+            anims, &(_Animation){.name = (char *)name});
+
+        anim->val = 0.0f;
+
+        hashmap_set(anims, anim);
+    }
+
     _Animation *anim = malloc(sizeof(_Animation));
     memset(anim, 0, sizeof(_Animation));
     anim->update = update;
@@ -156,5 +166,14 @@ void
 AnimationsApply(HM_Hashmap *anims, char *name, F64 *val) {
     if (AnimationsExists(anims, name)) {
         *val = AnimationsLoad(anims, name);
+    }
+}
+
+void
+AnimationsApply_(HM_Hashmap *anims, _Animation anim) {
+    if (anim.name) {
+        AnimationsApply(anims, anim.name, &anim.val);
+    } else {
+        assert(0 && "Received NULL Animation");
     }
 }

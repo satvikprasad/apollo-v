@@ -9,7 +9,8 @@
 #include "ffmpeg.h"
 #include "handmademath.h"
 
-I32 FFMPEGStart(HMM_Vec2 size, U32 fps, const char *music) {
+I32
+FFMPEGStart(HMM_Vec2 size, U32 fps, const char *music) {
     I32 pipefd[2];
 
     if (pipe(pipefd) < 0) {
@@ -63,12 +64,14 @@ I32 FFMPEGStart(HMM_Vec2 size, U32 fps, const char *music) {
     return pipefd[1];
 }
 
-void FFMPEGEnd(I32 pipe) {
+void
+FFMPEGEnd(I32 pipe) {
     close(pipe);
     wait(NULL);
 }
 
-void FFMPEGWrite(I32 pipe, void *data, HMM_Vec2 size) {
+void
+FFMPEGWrite(I32 pipe, void *data, HMM_Vec2 size) {
     for (U32 i = size.Height; i > 0; --i) {
         write(pipe, (U32 *)data + (i - 1) * (U32)size.Width,
               sizeof(U32) * (U32)size.Width);

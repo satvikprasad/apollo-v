@@ -52,7 +52,12 @@ typedef struct StateFont {
     Font fonts[FONT_SIZES_PER_FONT];
 } StateFont;
 
+typedef struct StatePopUp {
+    char text[512];
+} StatePopUp;
+
 #define MAX_ANIMATION_COUNT 512
+#define MAX_POP_UPS 10
 typedef struct State {
     MemoryArena arena;
 
@@ -101,6 +106,8 @@ typedef struct State {
         _Animation *recording;
         _Animation *end_recording;
         _Animation *fade_in;
+        _Animation *pop_up;
+        _Animation *pop_up_exit;
     } def_anims;
 
     F32 *filter;
@@ -121,6 +128,9 @@ typedef struct State {
 
     HMM_Vec2 screen_size;
     HMM_Vec2 window_position;
+
+    StatePopUp pop_ups[10];
+    U32        pop_up_count;
 } State;
 
 void
