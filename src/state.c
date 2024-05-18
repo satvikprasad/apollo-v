@@ -1,3 +1,5 @@
+// TODO: Polish Pop-ups, refractor repeated code
+
 #include "state.h"
 
 #include <math.h>
@@ -23,6 +25,7 @@
 #include "server.h"
 #include "signals.h"
 #include "thread.h"
+#include "ui.h"
 
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
@@ -52,7 +55,7 @@ static void
 FrameCallback(void *buffer_data, U32 n);
 
 static void
-PrintEllipses(U32 max, char buf[max + 1]);
+PrintEllipses(U32 max, F32 min, char buf[max + 1]);
 
 static void
 CreateFilter(F32 *filter, U32 filter_count);
@@ -107,6 +110,16 @@ CreateDirectories() {
     }
 }
 
+static void
+FadeInAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    anim->val = sqrtf(1.0f - anim->elapsed / *(F32 *)user_data);
+
+    if (anim->val < 0.0) {
+        anim->val = 0.0f;
+        anim->finished = true;
+    }
+}
+
 void
 StateInitialise() {
     CreateDirectories();
@@ -154,12 +167,12 @@ StateInitialise() {
         state->procedures = ProcedureCreate();
 
         state->def_procs.circle_frequencies =
-            _ProcedureAdd(state->procedures, "Circle Frequencies", NULL,
-                          CircleFrequenciesProc, &state->arena);
+            _ProcedureAdd(state->procedures, "_1", NULL, CircleFrequenciesProc,
+                          &state->arena);
 
         state->def_procs.normal_frequencies =
-            _ProcedureAdd(state->procedures, "Normal Frequencies", NULL,
-                          NormalFrequenciesProc, &state->arena);
+            _ProcedureAdd(state->procedures, "_2", NULL, NormalFrequenciesProc,
+                          &state->arena);
     }
 
     char apollo[512];
@@ -191,6 +204,8 @@ StateInitialise() {
     state->filter = ArenaPushArray(&state->arena, state->filter_count, F32);
     CreateFilter(state->filter, state->filter_count);
 
+    GuiLoadStyle(FSFormatAssetsDirectory("styles/apollo.rgs"));
+
     GuiSetFont(FontClosestToSize(state->font, 20));
     GuiSetStyle(DEFAULT, TEXT_SIZE,
                 FontClosestToSize(state->font, 20).baseSize);
@@ -210,6 +225,10 @@ StateInitialise() {
     RendererInitialise(state->renderer_data);
     LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
+
+    state->def_anims.fade_in =
+        AnimationsAdd(state->animations, "fade_in", &(F32){0.74f},
+                      FadeInAnimationUpdate, &state->arena);
 }
 
 static void
@@ -251,7 +270,7 @@ AddMetricCallback(void *user_data, char *response) {
 }
 
 static void
-FadeAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+FadeAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = anim->elapsed / *(F32 *)user_data;
 
     if (anim->val > 1.0) {
@@ -267,7 +286,7 @@ EndRecordingThread(void *data) {
 }
 
 void
-EndRecordingAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+EndRecordingAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = (0.5f - anim->elapsed) / 0.5f;
 
     if (anim->elapsed >= 0.5) {
@@ -278,34 +297,88 @@ EndRecordingAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
 }
 
 void
+BeginExiting() {
+    ServerPostAsync(state->server_data, "add-metric",
+                    TextFormat("{\"time\": %f}", GetTime()),
+                    &state->should_close, AddMetricCallback, &state->arena);
+
+    state->condition = StateCondition_EXITING;
+    state->def_anims.exiting =
+        AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
+                      FadeAnimationUpdate, &state->arena);
+}
+
+void
+PopUpEnterAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    F32 length = *(F32 *)user_data;
+
+    anim->val = sin((PI * anim->elapsed) / (2 * length));
+
+    if (anim->elapsed >= length) {
+        anim->finished = true;
+    }
+}
+
+void
+StateAddPopUp(const char *text) {
+    memcpy(state->pop_ups + 1, state->pop_ups,
+           sizeof(StatePopUp) * (MAX_POP_UPS - 1));
+
+    strcpy(state->pop_ups[0].text, text);
+
+    if (state->pop_up_count < MAX_POP_UPS) {
+        state->pop_up_count++;
+    }
+
+    state->def_anims.pop_up =
+        AnimationsAdd(state->animations, "pop up", &(F32){0.5},
+                      PopUpEnterAnimationUpdate, &state->arena);
+}
+
+void
+PopUpExitAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    F32 length = *(F32 *)user_data;
+
+    anim->val = sin((PI * (length - anim->elapsed)) / (2 * length));
+
+    if (anim->elapsed >= length) {
+        state->pop_up_count--;
+        memcpy(state->pop_ups, state->pop_ups + 1,
+               sizeof(StatePopUp) * (MAX_POP_UPS - 1));
+
+        anim->finished = true;
+    }
+}
+
+void
+StateRemovePopUp() {
+    state->def_anims.pop_up_exit =
+        AnimationsAdd(state->animations, "pop up exit", &(F32){0.25},
+                      PopUpExitAnimationUpdate, &state->arena);
+}
+
+void
 StateUpdate() {
     ApiUpdate(state->api_data, state);
     AnimationsUpdate(state->animations);
 
     SetFrequencyCount();
 
-    if (IsKeyPressed(KEY_ESCAPE)) {
-        if (state->condition != StateCondition_RECORDING) {
-            ServerPostAsync(state->server_data, "add-metric",
-                            TextFormat("{\"time\": %f}", GetTime()),
-                            &state->should_close, AddMetricCallback,
-                            &state->arena);
-
-            state->condition = StateCondition_EXITING;
-
-            AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
-                          FadeAnimationUpdate, &state->arena);
-        } else {
+    if (IsKeyPressed(KEY_ESCAPE) || WindowShouldClose()) {
+        if (state->condition == StateCondition_RECORDING) {
             if (!state->recording_thread) {
                 state->recording_thread = ThreadAlloc(&state->arena);
             }
 
             ThreadCreate(state->recording_thread, EndRecordingThread, state);
 
-            AnimationsAdd(state->animations, "end_recording", NULL,
-                          EndRecordingAnimationUpdate, &state->arena);
+            state->def_anims.end_recording =
+                AnimationsAdd(state->animations, "end_recording", NULL,
+                              EndRecordingAnimationUpdate, &state->arena);
 
             ResumeMusicStream(state->music);
+        } else {
+            BeginExiting();
         }
     }
 
@@ -322,6 +395,11 @@ StateUpdate() {
 
         UpdateMusicStream(state->music);
 
+        if (IsKeyPressed(KEY_R)) {
+            SeekMusicStream(state->music, 0);
+        }
+
+#if 0
         if (IsKeyPressed(KEY_L)) {
             if (state->loopback) {
                 AttachAudioStreamProcessor(state->music.stream, FrameCallback);
@@ -333,6 +411,7 @@ StateUpdate() {
                 state->loopback = true;
             }
         }
+#endif
 
         if (IsKeyPressed(KEY_SPACE)) {
             if (IsMusicStreamPlaying(state->music)) {
@@ -357,10 +436,6 @@ StateUpdate() {
 
         if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
             BeginRecording();
-            state->condition = StateCondition_RECORDING;
-
-            AnimationsAdd(state->animations, "recording", &(F32){0.4f},
-                          FadeAnimationUpdate, &state->arena);
         }
 
         if (IsKeyPressed(KEY_M)) {
@@ -423,13 +498,14 @@ StateRender() {
     switch (state->condition) {
     case StateCondition_EXITING: {
         char buf[4];
-        PrintEllipses(3, buf);
+        PrintEllipses(3, 0.f, buf);
 
         RendererDrawTextCenter(
             XLargeFont(state->font), TextFormat("Exiting%s", buf),
             HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
             (Color){255, 255, 255,
-                    255 * AnimationsLoad(state->animations, "exiting")});
+                    255 * AnimationsLoad_(state->animations,
+                                          state->def_anims.exiting)});
     } break;
     case StateCondition_NORMAL: {
         if (!IsMusicReady(state->music)) {
@@ -442,6 +518,44 @@ StateRender() {
 
         if (state->render_ui) {
             RenderUI();
+
+            // Render Pop-Ups
+            if (state->pop_up_count > 0 && state->ui) {
+                F32 pop_up_padding = 25;
+                F32 pop_up_height = 50;
+
+                F32 offset = 0;
+                if (AnimationsExists_(state->animations,
+                                      state->def_anims.pop_up)) {
+                    offset = (1 / 2.f) * (pop_up_height + pop_up_padding) *
+                             (AnimationsLoad_(state->animations,
+                                              state->def_anims.pop_up) -
+                              1);
+                } else if (AnimationsExists_(state->animations,
+                                             state->def_anims.pop_up_exit)) {
+                    offset = (1 / 2.f) * (pop_up_height + pop_up_padding) *
+                             (AnimationsLoad_(state->animations,
+                                              state->def_anims.pop_up_exit) -
+                              1);
+                }
+
+                F32 border_size = 2;
+
+                for (U32 i = state->pop_up_count - 1; i > 0; --i) {
+                    UIRenderPopUp(border_size, pop_up_height, pop_up_padding,
+                                  offset + (50 + pop_up_padding / 2) * i,
+                                  255 - i * (255.f / 10), state->screen_size,
+                                  state->font, &state->pop_ups[i], false);
+                }
+
+                if (UIRenderPopUp(border_size, pop_up_height, pop_up_padding,
+                                  offset, 255, state->screen_size, state->font,
+                                  &state->pop_ups[0], true) &&
+                    !AnimationsExists_(state->animations,
+                                       state->def_anims.pop_up_exit)) {
+                    StateRemovePopUp();
+                }
+            }
         }
     } break;
 
@@ -454,12 +568,12 @@ StateRender() {
 
     case StateCondition_RECORDING: {
         char buf[4];
-        PrintEllipses(3, buf);
+        PrintEllipses(3, 0.f, buf);
 
         F64 alpha = 1.0f;
 
-        AnimationsApply(state->animations, "recording", &alpha);
-        AnimationsApply(state->animations, "end_recording", &alpha);
+        AnimationsApply(state->animations, state->def_anims.recording->name,
+                        &alpha);
 
         RendererDrawTextCenter(
             XLargeFont(state->font), TextFormat("Now recording%s", buf),
@@ -479,6 +593,13 @@ StateRender() {
     default:
         printf("Unhandled case\n");
         break;
+    }
+
+    if (AnimationsExists_(state->animations, state->def_anims.fade_in)) {
+        DrawRectangle(0, 0, state->screen_size.Width, state->screen_size.Height,
+                      (Color){0, 0, 0,
+                              255 * AnimationsLoad_(state->animations,
+                                                    state->def_anims.fade_in)});
     }
 
     EndDrawing();
@@ -590,51 +711,70 @@ RenderParameterSlider(const char *name,
 
 static void
 RenderUI() {
+    F32        padding = 20;
+    F32        button_height = 25;
+    F32        font_size = 20;
+    F32        toggle_width = 25;
+    Parameter *parameter;
+    U32        _, i = 0;
+
+    UIToggleMenuData data =
+        UIMeasureToggleMenu(state->parameters, state->procedures, state->font,
+                            font_size, padding, toggle_width);
+
+    F32 left = data.max_loffset + toggle_width + padding;
+    F32 param_width = 200;
+    F32 max_param_width = (state->screen_size.Width - data.proc_button_width -
+                           padding - data.max_roffset) -
+                          (left);
+
+    if (toggle_width + data.proc_button_width + padding * 3 >
+        state->screen_size.Width) {
+        Rectangle button = {padding, padding, toggle_width, button_height};
+
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#137#")) {
+        }
+
+        DrawRectangleRec(button, (Color){0, 0, 0, 100});
+
+        state->ui = false;
+
+        return;
+    }
+
     if (state->ui) {
-        if (GuiButton((Rectangle){10, 10, 100, 25}, "Close UI")) {
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#121#")) {
             state->ui = false;
         }
 
-        F32 top_padding = 10;
+        if (max_param_width > 50) {
+            parameter = 0;
+            _ = 0;
+            i = 0;
+            while (ParameterIter(state->parameters, &_, &parameter)) {
+                if (!parameter) {
+                    continue;
+                }
 
-        Parameter *parameter;
-        U32        _, i = 0;
-
-        F32 max_offset = 0.f;
-        while (ParameterIter(state->parameters, &_, &parameter)) {
-            if (!parameter) {
-                continue;
-            }
-
-            F32 offset =
-                RayToHMMV2(MeasureTextEx(FontClosestToSize(state->font, 20),
-                                         parameter->name, 20, 1))
-                    .X;
-
-            if (offset > max_offset) {
-                max_offset = offset;
+                RenderParameterSlider(
+                    parameter->name,
+                    (Rectangle){left,
+                                i * (button_height + padding / 2) + padding,
+                                param_width > max_param_width ? max_param_width
+                                                              : param_width,
+                                button_height},
+                    parameter->name, TextFormat("[%.2f]", parameter->value),
+                    parameter->min, parameter->max);
+                ++i;
             }
         }
 
-        parameter = 0;
-        _ = 0;
-        i = 0;
-        while (ParameterIter(state->parameters, &_, &parameter)) {
-            if (!parameter) {
-                continue;
-            }
-
-            F32 offset = max_offset + 110;
-
-            RenderParameterSlider(
-                parameter->name,
-                (Rectangle){offset, i * 30 + top_padding, 200, 20},
-                parameter->name, TextFormat("[%.2f]", parameter->value),
-                parameter->min, parameter->max);
-            ++i;
-        }
-
-        Procedure *proc;
+        // Render procedure buttons
+        Procedure *proc = 0;
         _ = 0;
         i = 0;
         while (ProcedureIter(state->procedures, &_, &proc)) {
@@ -642,22 +782,27 @@ RenderUI() {
                 continue;
             }
 
-            if (GuiToggle((Rectangle){state->screen_size.Width - 250,
-                                      i * 30 + top_padding, 200, 20},
-                          TextFormat("%s", proc->name), &proc->active)) {
+            if (GuiToggle(
+                    (Rectangle){state->screen_size.Width -
+                                    data.proc_button_width - padding,
+                                i * (button_height + padding / 2) + padding,
+                                data.proc_button_width - padding,
+                                button_height},
+                    TextFormat("%s", proc->name), &proc->active)) {
                 ProcedureToggle(state->procedures, proc->name);
             }
             ++i;
         }
 
         if (GuiButton(
-                (Rectangle){state->screen_size.Width - 35, top_padding, 25, 25},
+                (Rectangle){state->screen_size.Width - 35, padding, 25, 25},
                 "#11#")) {
             BeginRecording();
-            state->condition = StateCondition_RECORDING;
         }
     } else {
-        if (GuiButton((Rectangle){10, 10, 100, 25}, "Open UI")) {
+        if (GuiButton(
+                (Rectangle){padding, padding, toggle_width, button_height},
+                "#120#")) {
             state->ui = true;
         }
     }
@@ -689,13 +834,27 @@ Render() {
 
 static void
 BeginRecording() {
-    memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
-    memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
+    state->condition = StateCondition_RECORDING;
+
+    if (!FSCanRunCMD("ffmpegs")) {
+        state->condition = StateCondition_NORMAL;
+        StateAddPopUp("Please ensure FFMPEG is installed. Can't record :(");
+        return;
+    }
 
     HMM_Vec2 render_size = HMM_V2(state->renderer_data->screen.texture.width,
                                   state->renderer_data->screen.texture.height);
 
     state->ffmpeg = FFMPEGStart(render_size, RENDER_FPS, state->music_fp);
+
+    if (state->ffmpeg < 0) {
+        state->condition = StateCondition_NORMAL;
+        return;
+    }
+
+    memset(state->samples, 0, sizeof(F32) * SAMPLE_COUNT);
+    memset(state->frequencies, 0, sizeof(F32) * state->frequency_count);
+
     state->record_start = GetTime();
 
     state->record_data.wave = LoadWave(state->music_fp);
@@ -703,6 +862,10 @@ BeginRecording() {
     state->record_data.wave_cursor = 0;
 
     PauseMusicStream(state->music);
+
+    state->def_anims.recording =
+        AnimationsAdd(state->animations, "recording", &(F32){0.4f},
+                      FadeAnimationUpdate, &state->arena);
 }
 
 static void
@@ -793,7 +956,7 @@ StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
 
 B8
 StateShouldClose() {
-    return state->should_close || WindowShouldClose();
+    return state->should_close;
 }
 
 static void
@@ -806,16 +969,17 @@ FrameCallback(void *buffer_data, U32 n) {
 }
 
 static void
-PrintEllipses(U32 max, char *buf) {
-    memset(buf, ' ', strlen(buf));
+PrintEllipses(U32 max, F32 min, char buf[max + 1]) {
+    U32 n =
+        MaxU32(roundf(0.5f * (max - min) * (sinf(5 * GetTime()) + 1) + min), 0);
 
-    U32 n = (U32)roundf((F32)max / 2 * sinf(5 * GetTime()) + (F32)max / 2);
-
-    for (U32 i = 0; i < n; ++i) {
-        if (i > max - 1) {
-            break;
+    for (U32 i = 0; i < max; ++i) {
+        if (i < n) {
+            buf[i] = '.';
+        } else {
+            buf[i] = ' ';
         }
-
-        buf[i] = '.';
     }
+
+    buf[max] = '\0';
 }

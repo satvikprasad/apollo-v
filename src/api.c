@@ -777,7 +777,7 @@ typedef struct AnimationUpdateData {
 } AnimationUpdateData;
 
 static void
-ApiAnimationUpdate(Animation *anim, void *user_data, F64 dt) {
+ApiAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     AnimationUpdateData *data = (AnimationUpdateData *)user_data;
 
     lua_pushlightuserdata(data->lua, anim);
@@ -790,7 +790,7 @@ static int
 L_AnimationGetElapsed(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_get_elapsed);
 
-    Animation *anim = lua_touserdata(L, 1);
+    _Animation *anim = lua_touserdata(L, 1);
 
     if (anim) {
         lua_pushnumber(L, anim->elapsed);
@@ -806,7 +806,7 @@ static int
 L_AnimationGetVal(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_get_elapsed);
 
-    Animation *anim = lua_touserdata(L, 1);
+    _Animation *anim = lua_touserdata(L, 1);
 
     if (anim) {
         lua_pushnumber(L, anim->val);
@@ -823,8 +823,8 @@ L_AnimationSetVal(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_set_val);
     CheckArgument(L, LUA_TNUMBER, 2, animation_set_val);
 
-    Animation *anim = lua_touserdata(L, 1);
-    F32        val = lua_tonumber(L, 2);
+    _Animation *anim = lua_touserdata(L, 1);
+    F32         val = lua_tonumber(L, 2);
 
     if (anim) {
         anim->val = val;
@@ -840,8 +840,8 @@ L_AnimationLoad(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_load);
     CheckArgument(L, LUA_TNUMBER, 2, animation_load);
 
-    Animation *anim = lua_touserdata(L, 1);
-    F32        def = lua_tonumber(L, 2);
+    _Animation *anim = lua_touserdata(L, 1);
+    F32         def = lua_tonumber(L, 2);
 
     if (AnimationsExists(p_state->animations, anim->name)) {
         lua_pushnumber(L, AnimationsLoad(p_state->animations, anim->name));
@@ -856,7 +856,7 @@ static int
 L_AnimationSetFinished(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_set_finished);
 
-    Animation *anim = lua_touserdata(L, 1);
+    _Animation *anim = lua_touserdata(L, 1);
 
     if (anim) {
         anim->finished = true;
@@ -883,8 +883,8 @@ L_AddAnimation(lua_State *L) {
         .lua = L,
     };
 
-    Animation *anim = AnimationsAdd(p_state->animations, name, &data,
-                                    ApiAnimationUpdate, &p_state->arena);
+    _Animation *anim = AnimationsAdd(p_state->animations, name, &data,
+                                     ApiAnimationUpdate, &p_state->arena);
 
     lua_pushlightuserdata(L, anim);
 
@@ -910,7 +910,9 @@ L_AddProcedure(lua_State *L) {
 
     const char *name = lua_tostring(L, 1);
 
-    lua_pushvalue(L, 2);
+    lua_remove(L, -2);
+
+    lua_pushvalue(L, 1);
 
     CheckArgument(L, LUA_TFUNCTION, -1, add_procedure);
     ApiCallback callback = RegisterCallback(L);
@@ -924,6 +926,10 @@ L_AddProcedure(lua_State *L) {
                                    ProcedureCallbackWrapper, &p_state->arena);
 
     lua_pushlightuserdata(L, proc);
+
+    lua_remove(L, -2);
+
+    DumpStack(L);
 
     return 1;
 }

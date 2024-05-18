@@ -41,6 +41,7 @@ cp -r /opt/homebrew/opt/openssl@3/lib/libssl.3.dylib ${NAME}.app/Contents/Framew
 cp -r /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib ${NAME}.app/Contents/Frameworks/
 cp -r /opt/homebrew/opt/libunistring/lib/libunistring.5.dylib ${NAME}.app/Contents/Frameworks/
 cp -r /opt/homebrew/opt/gettext/lib/libintl.8.dylib ${NAME}.app/Contents/Frameworks/
+cp -r $(which ffmpeg) ${NAME}.app/Contents/Frameworks/
 cp -r build/assets ${NAME}.app/Contents/Resources/
 cp -r build/lua ${NAME}.app/Contents/Resources/
 cat macos/Info.plist | sed "s/\${NAME}/${NAME}/g" > ${NAME}.app/Contents/Info.plist

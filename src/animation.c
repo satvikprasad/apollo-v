@@ -3,28 +3,29 @@
 #include "hashmap.h"
 #include "lmath.h"
 #include "raylib.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static U64
 AnimationsHash(const void *item, U64 seed0, U64 seed1) {
-    Animation *anim = (Animation *)item;
+    _Animation *anim = (_Animation *)item;
 
     return hashmap_sip(anim->name, strlen(anim->name), seed0, seed1);
 }
 
 static I32
 AnimationsCompare(const void *a, const void *b, void *udata) {
-    Animation *anim_a = (Animation *)a;
-    Animation *anim_b = (Animation *)b;
+    _Animation *anim_a = (_Animation *)a;
+    _Animation *anim_b = (_Animation *)b;
 
     return strcmp(anim_a->name, anim_b->name);
 }
 
 static void
 AnimationsFree(void *item) {
-    Animation *anim = (Animation *)item;
+    _Animation *anim = (_Animation *)item;
 
     if (anim->user_data) {
         free(anim->user_data);
@@ -36,7 +37,7 @@ AnimationsFree(void *item) {
 
 HM_Hashmap *
 AnimationsCreate() {
-    return hashmap_new(sizeof(Animation), 0, 0, 0, AnimationsHash,
+    return hashmap_new(sizeof(_Animation), 0, 0, 0, AnimationsHash,
                        AnimationsCompare, AnimationsFree, NULL);
 }
 
@@ -52,15 +53,24 @@ AnimationsCreate() {
  * @param arena The arena to allocate the animation from.
  * @return Animation* The animation.
  */
-Animation *
+_Animation *
 AnimationsAdd_(HM_Hashmap *anims,
                const char *name,
                void       *user_data,
                U32         user_data_size,
-               void (*update)(struct Animation *anim, void *user_data, F64 dt),
+               void (*update)(_Animation *anim, void *user_data, F64 dt),
                MemoryArena *arena) {
-    Animation *anim = malloc(sizeof(Animation));
-    memset(anim, 0, sizeof(Animation));
+    if (AnimationsExists(anims, name)) {
+        _Animation *anim = (_Animation *)hashmap_get(
+            anims, &(_Animation){.name = (char *)name});
+
+        anim->val = 0.0f;
+
+        hashmap_set(anims, anim);
+    }
+
+    _Animation *anim = malloc(sizeof(_Animation));
+    memset(anim, 0, sizeof(_Animation));
     anim->update = update;
 
     if (user_data) {
@@ -78,8 +88,8 @@ AnimationsAdd_(HM_Hashmap *anims,
 
 void
 AnimationsUpdate(HM_Hashmap *anims) {
-    U32        i;
-    Animation *anim;
+    U32         i;
+    _Animation *anim;
 
     while (hashmap_iter(anims, &i, (void **)&anim)) {
         if (anim->finished) {
@@ -95,16 +105,29 @@ AnimationsUpdate(HM_Hashmap *anims) {
 
 B8
 AnimationsExists(HM_Hashmap *anims, const char *name) {
-    Animation *anim =
-        (Animation *)hashmap_get(anims, &(Animation){.name = (char *)name});
+    _Animation *anim =
+        (_Animation *)hashmap_get(anims, &(_Animation){.name = (char *)name});
 
     return anim != NULL;
 }
 
+B8
+AnimationsExists_(HM_Hashmap *anims, _Animation *anim) {
+    if (anim) {
+        return AnimationsExists(anims, anim->name);
+    }
+
+    return NULL;
+}
+
 F32
 AnimationsLoad(HM_Hashmap *anims, const char *name) {
-    Animation *anim =
-        (Animation *)hashmap_get(anims, &(Animation){.name = (char *)name});
+    if (!name) {
+        return 1.0f;
+    }
+
+    _Animation *anim =
+        (_Animation *)hashmap_get(anims, &(_Animation){.name = (char *)name});
 
     if (anim) {
         return anim->val;
@@ -114,9 +137,18 @@ AnimationsLoad(HM_Hashmap *anims, const char *name) {
 }
 
 F32
-AnimationsLoadEx(HM_Hashmap *anims, Animation *anim_in) {
-    Animation *anim = (Animation *)hashmap_get(
-        anims, &(Animation){.name = (char *)anim_in->name});
+AnimationsLoad_(HM_Hashmap *anims, _Animation *anim) {
+    if (anim) {
+        return AnimationsLoad(anims, anim->name);
+    }
+
+    return 1.0f;
+}
+
+F32
+AnimationsLoadEx(HM_Hashmap *anims, _Animation *anim_in) {
+    _Animation *anim = (_Animation *)hashmap_get(
+        anims, &(_Animation){.name = (char *)anim_in->name});
 
     if (anim) {
         return anim->val;
@@ -127,12 +159,21 @@ AnimationsLoadEx(HM_Hashmap *anims, Animation *anim_in) {
 
 void
 AnimationsDelete(HM_Hashmap *anims, char *name) {
-    hashmap_delete(anims, &(Animation){.name = name});
+    hashmap_delete(anims, &(_Animation){.name = name});
 }
 
 void
 AnimationsApply(HM_Hashmap *anims, char *name, F64 *val) {
     if (AnimationsExists(anims, name)) {
         *val = AnimationsLoad(anims, name);
+    }
+}
+
+void
+AnimationsApply_(HM_Hashmap *anims, _Animation anim) {
+    if (anim.name) {
+        AnimationsApply(anims, anim.name, &anim.val);
+    } else {
+        assert(0 && "Received NULL Animation");
     }
 }

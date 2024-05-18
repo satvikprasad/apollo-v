@@ -3,6 +3,24 @@
 #include "handmademath.h"
 #include "raylib.h"
 
+U32
+MaxU32(U32 a, U32 b) {
+    if (a > b) {
+        return a;
+    }
+
+    return b;
+}
+
+U32
+MinU32(U32 a, U32 b) {
+    if (a < b) {
+        return a;
+    }
+
+    return b;
+}
+
 F32
 MinF32(F32 a, F32 b) {
     if (a < b) {
