@@ -68,7 +68,6 @@ CallCallback_(lua_State *L, int *callback, U32 args);
 static void
 FreeCallback(lua_State *L, int *callback);
 
-/**
 static void
 DumpStack(lua_State *L) {
     int top = lua_gettop(L);
@@ -93,7 +92,6 @@ DumpStack(lua_State *L) {
         }
     }
 }
-**/
 
 #define X(func, name) static int func(lua_State *L);
 API_METHODS
@@ -912,7 +910,9 @@ L_AddProcedure(lua_State *L) {
 
     const char *name = lua_tostring(L, 1);
 
-    lua_pushvalue(L, 2);
+    lua_remove(L, -2);
+
+    lua_pushvalue(L, 1);
 
     CheckArgument(L, LUA_TFUNCTION, -1, add_procedure);
     ApiCallback callback = RegisterCallback(L);
@@ -926,6 +926,10 @@ L_AddProcedure(lua_State *L) {
                                    ProcedureCallbackWrapper, &p_state->arena);
 
     lua_pushlightuserdata(L, proc);
+
+    lua_remove(L, -2);
+
+    DumpStack(L);
 
     return 1;
 }

@@ -55,7 +55,7 @@ static void
 FrameCallback(void *buffer_data, U32 n);
 
 static void
-PrintEllipses(U32 max, char buf[max + 1]);
+PrintEllipses(U32 max, F32 min, char buf[max + 1]);
 
 static void
 CreateFilter(F32 *filter, U32 filter_count);
@@ -167,12 +167,12 @@ StateInitialise() {
         state->procedures = ProcedureCreate();
 
         state->def_procs.circle_frequencies =
-            _ProcedureAdd(state->procedures, "Circle Frequencies", NULL,
-                          CircleFrequenciesProc, &state->arena);
+            _ProcedureAdd(state->procedures, "_1", NULL, CircleFrequenciesProc,
+                          &state->arena);
 
         state->def_procs.normal_frequencies =
-            _ProcedureAdd(state->procedures, "Normal Frequencies", NULL,
-                          NormalFrequenciesProc, &state->arena);
+            _ProcedureAdd(state->procedures, "_2", NULL, NormalFrequenciesProc,
+                          &state->arena);
     }
 
     char apollo[512];
@@ -303,7 +303,6 @@ BeginExiting() {
                     &state->should_close, AddMetricCallback, &state->arena);
 
     state->condition = StateCondition_EXITING;
-
     state->def_anims.exiting =
         AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
                       FadeAnimationUpdate, &state->arena);
@@ -395,6 +394,10 @@ StateUpdate() {
         }
 
         UpdateMusicStream(state->music);
+
+        if (IsKeyPressed(KEY_R)) {
+            SeekMusicStream(state->music, 0);
+        }
 
 #if 0
         if (IsKeyPressed(KEY_L)) {
@@ -495,14 +498,14 @@ StateRender() {
     switch (state->condition) {
     case StateCondition_EXITING: {
         char buf[4];
-        PrintEllipses(3, buf);
+        PrintEllipses(3, 0.f, buf);
 
         RendererDrawTextCenter(
             XLargeFont(state->font), TextFormat("Exiting%s", buf),
             HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
             (Color){255, 255, 255,
-                    255 * AnimationsLoad(state->animations,
-                                         state->def_anims.exiting->name)});
+                    255 * AnimationsLoad_(state->animations,
+                                          state->def_anims.exiting)});
     } break;
     case StateCondition_NORMAL: {
         if (!IsMusicReady(state->music)) {
@@ -516,93 +519,38 @@ StateRender() {
         if (state->render_ui) {
             RenderUI();
 
-            if (state->pop_up_count > 0) {
-                F32 padding = 25;
+            // Render Pop-Ups
+            if (state->pop_up_count > 0 && state->ui) {
+                F32 pop_up_padding = 25;
                 F32 pop_up_height = 50;
-                F32 pop_up_width = MaxF32(
-                    100, MeasureTextEx(FontClosestToSize(state->font, 20),
-                                       state->pop_ups[0].text, 20, 1)
-                                 .x +
-                             20);
 
-                F32 offset = pop_up_height + padding;
+                F32 offset = 0;
                 if (AnimationsExists_(state->animations,
                                       state->def_anims.pop_up)) {
-                    offset = (pop_up_height + padding) *
-                             AnimationsLoad_(state->animations,
-                                             state->def_anims.pop_up);
+                    offset = (1 / 2.f) * (pop_up_height + pop_up_padding) *
+                             (AnimationsLoad_(state->animations,
+                                              state->def_anims.pop_up) -
+                              1);
                 } else if (AnimationsExists_(state->animations,
                                              state->def_anims.pop_up_exit)) {
-                    offset = (pop_up_height + padding) *
-                             AnimationsLoad_(state->animations,
-                                             state->def_anims.pop_up_exit);
+                    offset = (1 / 2.f) * (pop_up_height + pop_up_padding) *
+                             (AnimationsLoad_(state->animations,
+                                              state->def_anims.pop_up_exit) -
+                              1);
                 }
 
                 F32 border_size = 2;
 
-                for (U32 i = 1; i < state->pop_up_count; ++i) {
-                    DrawRectangleRec(
-                        (Rectangle){state->screen_size.Width - padding -
-                                        pop_up_width - border_size,
-                                    state->screen_size.Height -
-                                        (pop_up_height + padding) - border_size,
-                                    pop_up_width + 2 * border_size,
-                                    pop_up_height + 2 * border_size},
-                        (Color){204, 204, 204, 255});
-
-                    DrawRectangleRec((Rectangle){state->screen_size.Width -
-                                                     padding - pop_up_width,
-                                                 state->screen_size.Height -
-                                                     (pop_up_height + padding),
-                                                 pop_up_width, pop_up_height},
-                                     (Color){137, 116, 185, 255});
-
-                    RendererDrawTextCenter(
-                        FontClosestToSize(state->font, 20),
-                        state->pop_ups[i].text,
-                        HMM_V2(state->screen_size.Width - padding * 1.5 -
-                                   pop_up_width / 2,
-                               state->screen_size.Height -
-                                   (pop_up_height + padding) +
-                                   pop_up_height / 2),
-                        WHITE);
-                    GuiButton(
-                        (Rectangle){state->screen_size.Width - padding * 2.5,
-                                    state->screen_size.Height -
-                                        (pop_up_height + padding) + padding / 2,
-                                    padding, padding},
-                        "X");
+                for (U32 i = state->pop_up_count - 1; i > 0; --i) {
+                    UIRenderPopUp(border_size, pop_up_height, pop_up_padding,
+                                  offset + (50 + pop_up_padding / 2) * i,
+                                  255 - i * (255.f / 10), state->screen_size,
+                                  state->font, &state->pop_ups[i], false);
                 }
 
-                DrawRectangleRec((Rectangle){state->screen_size.Width -
-                                                 padding - pop_up_width -
-                                                 border_size,
-                                             state->screen_size.Height -
-                                                 offset - border_size,
-                                             pop_up_width + 2 * border_size,
-                                             pop_up_height + 2 * border_size},
-                                 (Color){204, 204, 204, 255});
-
-                DrawRectangleRec((Rectangle){state->screen_size.Width -
-                                                 padding - pop_up_width,
-                                             state->screen_size.Height - offset,
-                                             pop_up_width, pop_up_height},
-                                 (Color){137, 116, 185, 255});
-
-                RendererDrawTextCenter(
-                    FontClosestToSize(state->font, 20), state->pop_ups[0].text,
-                    HMM_V2(state->screen_size.Width - padding * 1.5 -
-                               pop_up_width / 2,
-                           state->screen_size.Height - offset +
-                               pop_up_height / 2),
-                    WHITE);
-
-                if (GuiButton(
-                        (Rectangle){state->screen_size.Width - padding * 2.5,
-                                    state->screen_size.Height - offset +
-                                        padding / 2,
-                                    padding, padding},
-                        "X") &&
+                if (UIRenderPopUp(border_size, pop_up_height, pop_up_padding,
+                                  offset, 255, state->screen_size, state->font,
+                                  &state->pop_ups[0], true) &&
                     !AnimationsExists_(state->animations,
                                        state->def_anims.pop_up_exit)) {
                     StateRemovePopUp();
@@ -620,7 +568,7 @@ StateRender() {
 
     case StateCondition_RECORDING: {
         char buf[4];
-        PrintEllipses(3, buf);
+        PrintEllipses(3, 0.f, buf);
 
         F64 alpha = 1.0f;
 
@@ -791,6 +739,8 @@ RenderUI() {
 
         DrawRectangleRec(button, (Color){0, 0, 0, 100});
 
+        state->ui = false;
+
         return;
     }
 
@@ -886,7 +836,7 @@ static void
 BeginRecording() {
     state->condition = StateCondition_RECORDING;
 
-    if (!FSCanRunCMD("ffmpeg")) {
+    if (!FSCanRunCMD("ffmpegs")) {
         state->condition = StateCondition_NORMAL;
         StateAddPopUp("Please ensure FFMPEG is installed. Can't record :(");
         return;
@@ -1019,16 +969,17 @@ FrameCallback(void *buffer_data, U32 n) {
 }
 
 static void
-PrintEllipses(U32 max, char *buf) {
-    memset(buf, ' ', strlen(buf));
+PrintEllipses(U32 max, F32 min, char buf[max + 1]) {
+    U32 n =
+        MaxU32(roundf(0.5f * (max - min) * (sinf(5 * GetTime()) + 1) + min), 0);
 
-    U32 n = (U32)roundf((F32)max / 2 * sinf(5 * GetTime()) + (F32)max / 2);
-
-    for (U32 i = 0; i < n; ++i) {
-        if (i > max - 1) {
-            break;
+    for (U32 i = 0; i < max; ++i) {
+        if (i < n) {
+            buf[i] = '.';
+        } else {
+            buf[i] = ' ';
         }
-
-        buf[i] = '.';
     }
+
+    buf[max] = '\0';
 }

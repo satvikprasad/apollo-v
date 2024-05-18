@@ -16,3 +16,13 @@ UIMeasureToggleMenu(HM_Hashmap *params,
                     F32         font_size,
                     F32         padding,
                     F32         toggle_width);
+B8
+UIRenderPopUp(F32         border_size,
+              F32         height,
+              F32         padding,
+              F32         offset,
+              F32         alpha,
+              HMM_Vec2    screen_size,
+              StateFont   font,
+              StatePopUp *pop_up,
+              B8          enabled);
