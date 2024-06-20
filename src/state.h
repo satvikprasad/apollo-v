@@ -8,7 +8,6 @@
 #include "defines.h"
 #include "handmademath.h"
 #include "hashmap.h"
-#include "loopback.h"
 #include "parameter.h"
 #include "procedures.h"
 #include "raylib.h"
@@ -31,10 +30,10 @@ typedef enum StateCondition {
 
 typedef struct StateMemory {
     void *permanent_storage;
-    U32   permanent_storage_size;
+    U32 permanent_storage_size;
 
     void *transient_storage;
-    U32   transient_storage_size;
+    U32 transient_storage_size;
 } StateMemory;
 
 #define FONT_SIZES_PER_FONT 12
@@ -62,14 +61,13 @@ typedef struct State {
     MemoryArena arena;
 
     RendererData *renderer_data;
-    ApiData      *api_data;
-    LoopbackData *loopback_data;
-    ServerData   *server_data;
+    ApiData *api_data;
+    ServerData *server_data;
 
     Thread *recording_thread;
 
     Music music;
-    char  music_fp[256];
+    char music_fp[256];
 
     StateFont font;
 
@@ -87,7 +85,7 @@ typedef struct State {
     struct {
         Wave wave;
         F32 *wave_samples;
-        U32  wave_cursor;
+        U32 wave_cursor;
     } record_data;
 
     struct {
@@ -111,7 +109,7 @@ typedef struct State {
     } def_anims;
 
     F32 *filter;
-    U32  filter_count;
+    U32 filter_count;
 
     StateCondition condition;
 
@@ -121,8 +119,8 @@ typedef struct State {
 
     B8 render_ui;
     B8 ui;
-    B8 loopback;
     B8 should_close;
+    B8 loopback;
 
     B8 zero_frequencies;
 
@@ -130,19 +128,18 @@ typedef struct State {
     HMM_Vec2 window_position;
 
     StatePopUp pop_ups[10];
-    U32        pop_up_count;
+    U32 pop_up_count;
 } State;
 
-void
-StateInitialise();
-void
-StateUpdate();
-void
-StateRender();
-void
-StateDestroy();
-void
-StatePushFrame(F32 val, F32 *samples, U32 sample_count);
+void StateInitialise();
+void StateUpdate();
+void StateRender();
+void StateDestroy();
+void StatePushFrame(F32 val);
 
-B8
-StateShouldClose();
+void StateSetLoopback(bool val);
+bool StateGetLoopback();
+
+bool StateLoadFile(const char *filename);
+
+B8 StateShouldClose();

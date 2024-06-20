@@ -6,8 +6,10 @@ NC='\033[0m'
 NAME="Apollo"
 
 SRC=$(find src/*.c | tr '\n' ' ' | sed -r 's/ (src\/[^\s]*_win32.c)//g')
+SRC+=$(find src/macos/*.m)
 CFLAGS="-Ilib/raylib/src -Ilib/lua-5.4.6/src -Ilib/miniaudio/ -Ilib/jsmn -Ilib/curl-8.5.0/include -Ilib/portaudio/include/"
-LDFLAGS="-lraylib -llua -L./lib/raylib/src/ -L./lib/lua-5.4.6/src -lportaudio -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL -lcurl -L./build/"
+LDFLAGS="-lraylib -llua -L./lib/raylib/src/ -L./lib/lua-5.4.6/src -lportaudio -framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL -lcurl -L./build/ "
+LDFLAGS+="-framework AppKit -framework UniformTypeIdentifiers -framework ScreenCaptureKit -framework CoreMedia -framework AVKit -framework AVFAudio"
 
 echo -e ${GREEN}Found source files: $SRC${NC}
 

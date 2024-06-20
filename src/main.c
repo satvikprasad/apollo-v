@@ -10,8 +10,7 @@
 
 void *libstate;
 
-I32
-main(void) {
+I32 main(void) {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1280, 1080, "Apollo");

@@ -16,8 +16,10 @@
 #include "ffmpeg.h"
 #include "filesystem.h"
 #include "handmademath.h"
-#include "hashmap.h"
+#include "io.h"
 #include "lmath.h"
+#include "macos/loopback.h"
+#include "macos/menu.h"
 #include "parameter.h"
 #include "permanent_storage.h"
 #include "procedures.h"
@@ -30,98 +32,63 @@
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
 
-static void
-Serialize();
-static bool
-Deserialize();
-static void
-RenderUI();
-static void
-Render();
+static void RenderUI();
+static void Render();
 
-static void
-BeginRecording();
-static void
-EndRecording();
-static void
-UpdateRecording();
+static void BeginRecording();
+static void EndRecording();
+static void UpdateRecording();
 
-static void
-SetFrequencyCount();
-static B8
-GetDroppedFiles();
+static void SetFrequencyCount();
+static B8 GetDroppedFiles();
 
-static void
-FrameCallback(void *buffer_data, U32 n);
+static void FrameCallback(void *buffer_data, U32 n);
 
-static void
-PrintEllipses(U32 max, F32 min, char buf[max + 1]);
+static void PrintEllipses(U32 max, F32 min, char buf[max + 1]);
 
-static void
-CreateFilter(F32 *filter, U32 filter_count);
+static void CreateFilter(F32 *filter, U32 filter_count);
 
-static void
-CircleFrequenciesProc(void *user_data);
+static void CircleFrequenciesProc(void *user_data);
+static void NormalFrequenciesProc(void *user_data);
 
-static void
-NormalFrequenciesProc(void *user_data);
+static void CreateDirectories();
+
+static StateFont LoadStateFont(const char *fp);
+static void UnloadStateFont(StateFont font);
+
+static void CreateFilter(F32 *filter, U32 filter_count);
+
+static void FadeInAnimationUpdate(_Animation *anim, void *user_data, F64 dt);
 
 static StateMemory memory;
-static State      *state;
+static State *state;
 
-static StateFont
-LoadStateFont(const char *fp) {
-    StateFont font;
-
-    U32 incr = MAX_FONT_SIZE / FONT_SIZES_PER_FONT;
-
-    for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
-        font.fonts[i] =
-            LoadFontEx(FSFormatAssetsDirectory(fp), (i + 1) * incr, NULL, 0);
+bool StateLoadFile(const char *fp) {
+    if (IsMusicReady(state->music)) {
+        DetachAudioStreamProcessor(state->music.stream, FrameCallback);
+        StopMusicStream(state->music);
+        UnloadMusicStream(state->music);
     }
 
-    return font;
+    state->music = LoadMusicStream(fp);
+    strcpy(state->music_fp, fp);
+
+    if (IsMusicReady(state->music)) {
+        PlayMusicStream(state->music);
+        AttachAudioStreamProcessor(state->music.stream, FrameCallback);
+
+        SetWindowTitle(TextFormat("Apollo - %s", fp));
+
+        return true;
+    }
+
+    return false;
 }
 
-static void
-UnloadStateFont(StateFont font) {
-    for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
-        UnloadFont(font.fonts[i]);
-    }
-}
+void StateInitialise() {
+    MacOSLoopbackBegin();
+    MacOSCreateMenus();
 
-static void
-CreateDirectories() {
-    char config[512];
-    FSGetConfigDirectory(config);
-    if (!DirectoryExists(config)) {
-        FSCreateDirectory(config);
-    }
-
-    char apollo[512];
-    FSGetApolloDirectory(apollo);
-
-    if (!DirectoryExists(apollo)) {
-        FSCreateDirectory(apollo);
-    }
-
-    if (!DirectoryExists(TextFormat("%s/shaders", apollo))) {
-        FSCreateDirectory(TextFormat("%s/shaders", apollo));
-    }
-}
-
-static void
-FadeInAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
-    anim->val = sqrtf(1.0f - anim->elapsed / *(F32 *)user_data);
-
-    if (anim->val < 0.0) {
-        anim->val = 0.0f;
-        anim->finished = true;
-    }
-}
-
-void
-StateInitialise() {
     CreateDirectories();
 
     // Initialising memory
@@ -137,7 +104,6 @@ StateInitialise() {
 
     state->api_data = ArenaPushStruct(&state->arena, ApiData);
     state->renderer_data = ArenaPushStruct(&state->arena, RendererData);
-    state->loopback_data = ArenaPushStruct_(&state->arena, LoopbackDataSize());
     state->server_data = ArenaPushStruct(&state->arena, ServerData);
 
     // Initialise default parameters
@@ -180,7 +146,7 @@ StateInitialise() {
     ApiInitialise(TextFormat("%s/%s", apollo, "init.lua"), state,
                   state->api_data);
 
-    if (Deserialize()) {
+    if (Deserialize(state)) {
         if (!FileExists(state->music_fp) || strlen(state->music_fp) == 0) {
             strcpy(state->music_fp, FSFormatAssetsDirectory("monks.mp3"));
         }
@@ -223,7 +189,6 @@ StateInitialise() {
     }
 
     RendererInitialise(state->renderer_data);
-    LoopbackInitialise(state->loopback_data, state);
     ServerInitialise(state->server_data, API_URI, &state->arena);
 
     state->def_anims.fade_in =
@@ -231,28 +196,14 @@ StateInitialise() {
                       FadeInAnimationUpdate, &state->arena);
 }
 
-static void
-CreateFilter(F32 *filter, U32 filter_count) {
-    I32 begin = (U32)floor((F32)filter_count / 2);
-
-    I32 end = (U32)ceil((F32)filter_count / 2);
-
-    for (I32 i = -begin; i < end; ++i) {
-        filter[i + begin] = expf(-i * i);
-    }
-}
-
-void
-StateDestroy() {
+void StateDestroy() {
     ServerWait(state->server_data);
 
-    Serialize();
+    Serialize(state);
 
     ServerDestroy(state->server_data);
 
     ApiDestroy(state->api_data);
-
-    LoopbackDestroy(state->loopback_data);
 
     RendererDestroy(state->renderer_data);
 
@@ -264,13 +215,11 @@ StateDestroy() {
     PermanentStorageDestroy(memory.permanent_storage);
 }
 
-void
-AddMetricCallback(void *user_data, char *response) {
+void AddMetricCallback(void *user_data, char *response) {
     *(B8 *)user_data = true;
 }
 
-static void
-FadeAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+static void FadeAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = anim->elapsed / *(F32 *)user_data;
 
     if (anim->val > 1.0) {
@@ -279,14 +228,12 @@ FadeAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     }
 }
 
-static void *
-EndRecordingThread(void *data) {
+static void *EndRecordingThread(void *data) {
     EndRecording();
     return NULL;
 }
 
-void
-EndRecordingAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+void EndRecordingAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     anim->val = (0.5f - anim->elapsed) / 0.5f;
 
     if (anim->elapsed >= 0.5) {
@@ -296,8 +243,7 @@ EndRecordingAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     }
 }
 
-void
-BeginExiting() {
+void BeginExiting() {
     ServerPostAsync(state->server_data, "add-metric",
                     TextFormat("{\"time\": %f}", GetTime()),
                     &state->should_close, AddMetricCallback, &state->arena);
@@ -308,8 +254,7 @@ BeginExiting() {
                       FadeAnimationUpdate, &state->arena);
 }
 
-void
-PopUpEnterAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+void PopUpEnterAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     F32 length = *(F32 *)user_data;
 
     anim->val = sin((PI * anim->elapsed) / (2 * length));
@@ -319,8 +264,7 @@ PopUpEnterAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     }
 }
 
-void
-StateAddPopUp(const char *text) {
+void StateAddPopUp(const char *text) {
     memcpy(state->pop_ups + 1, state->pop_ups,
            sizeof(StatePopUp) * (MAX_POP_UPS - 1));
 
@@ -335,8 +279,7 @@ StateAddPopUp(const char *text) {
                       PopUpEnterAnimationUpdate, &state->arena);
 }
 
-void
-PopUpExitAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+void PopUpExitAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     F32 length = *(F32 *)user_data;
 
     anim->val = sin((PI * (length - anim->elapsed)) / (2 * length));
@@ -350,15 +293,13 @@ PopUpExitAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     }
 }
 
-void
-StateRemovePopUp() {
+void StateRemovePopUp() {
     state->def_anims.pop_up_exit =
         AnimationsAdd(state->animations, "pop up exit", &(F32){0.25},
                       PopUpExitAnimationUpdate, &state->arena);
 }
 
-void
-StateUpdate() {
+void StateUpdate() {
     ApiUpdate(state->api_data, state);
     AnimationsUpdate(state->animations);
 
@@ -388,39 +329,36 @@ StateUpdate() {
     case StateCondition_NORMAL: {
         ApiPreUpdate(state->api_data, state);
 
+        if (state->loopback) {
+            if (IsKeyPressed(KEY_R)) {
+                SeekMusicStream(state->music, 0);
+            }
+
+            if (IsKeyPressed(KEY_SPACE)) {
+                if (IsMusicStreamPlaying(state->music)) {
+                    PauseMusicStream(state->music);
+                } else {
+                    ResumeMusicStream(state->music);
+                }
+            }
+
+            if (IsKeyPressed(KEY_M) && !IsKeyDown(KEY_LEFT_CONTROL) &&
+                IsMusicReady(state->music)) {
+                if (_ParameterGetValue(state->def_params.master_volume) !=
+                    0.f) {
+                    _ParameterSetValue(state->def_params.master_volume, 0.f);
+                } else {
+                    _ParameterSetValue(state->def_params.master_volume, 100.f);
+                }
+            }
+        }
+
         if (!IsMusicReady(state->music)) {
             state->condition = StateCondition_LOAD;
             break;
         }
 
         UpdateMusicStream(state->music);
-
-        if (IsKeyPressed(KEY_R)) {
-            SeekMusicStream(state->music, 0);
-        }
-
-#if 0
-        if (IsKeyPressed(KEY_L)) {
-            if (state->loopback) {
-                AttachAudioStreamProcessor(state->music.stream, FrameCallback);
-                ResumeMusicStream(state->music);
-                state->loopback = false;
-            } else {
-                DetachAudioStreamProcessor(state->music.stream, FrameCallback);
-                PauseMusicStream(state->music);
-                state->loopback = true;
-            }
-        }
-#endif
-
-        if (IsKeyPressed(KEY_SPACE)) {
-            if (IsMusicStreamPlaying(state->music)) {
-                PauseMusicStream(state->music);
-            } else {
-                ResumeMusicStream(state->music);
-            }
-        }
-
         if (IsWindowResized()) {
             state->screen_size = HMM_V2(GetRenderWidth(), GetRenderHeight());
         }
@@ -438,17 +376,8 @@ StateUpdate() {
             BeginRecording();
         }
 
-        if (IsKeyPressed(KEY_M)) {
-            if (IsKeyDown(KEY_LEFT_CONTROL)) {
-                state->render_ui = !state->render_ui;
-            } else if (IsMusicReady(state->music)) {
-                if (_ParameterGetValue(state->def_params.master_volume) !=
-                    0.f) {
-                    _ParameterSetValue(state->def_params.master_volume, 0.f);
-                } else {
-                    _ParameterSetValue(state->def_params.master_volume, 100.f);
-                }
-            }
+        if (IsKeyPressed(KEY_M) && IsKeyDown(KEY_LEFT_CONTROL)) {
+            state->render_ui = !state->render_ui;
         }
 
         SignalsProcessSamples(
@@ -488,8 +417,7 @@ StateUpdate() {
     state->master_volume = GetMasterVolume();
 }
 
-void
-StateRender() {
+void StateRender() {
     Color clear = state->api_data->data.opt.bg_color;
 
     BeginDrawing();
@@ -605,103 +533,9 @@ StateRender() {
     EndDrawing();
 }
 
-static void
-WriteString(const char *str, FILE *fptr) {
-    U32 len = strlen(str);
-
-    fwrite(&len, sizeof(U32), 1, fptr);
-    fwrite(str, sizeof(char), len + 1, fptr);
-}
-
-static void
-ReadString(char *str, FILE *fptr) {
-    U32 len;
-    fread(&len, sizeof(U32), 1, fptr);
-    fread(str, sizeof(char), len + 1, fptr);
-}
-
-static void
-Serialize() {
-    FILE *fptr;
-
-    fptr = fopen(FSFormatDataDirectory("data.ly"), "wb");
-
-    if (fptr) {
-        fwrite(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
-        fwrite(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
-        fwrite(&state->master_volume, sizeof(F32), 1, fptr);
-
-        WriteString(state->music_fp, fptr);
-
-        U32 param_count = ParameterCount(state->parameters);
-        fwrite(&param_count, sizeof(U32), 1, fptr);
-
-        Parameter *parameter;
-        U32        _ = 0;
-        while (ParameterIter(state->parameters, &_, &parameter)) {
-            WriteString(parameter->name, fptr);
-            fwrite(&parameter->value, sizeof(F32), 1, fptr);
-            fwrite(&parameter->min, sizeof(F32), 1, fptr);
-            fwrite(&parameter->max, sizeof(F32), 1, fptr);
-        }
-
-        fclose(fptr);
-    } else {
-        printf("Failed to open file %s\n", FSFormatDataDirectory("data.ly"));
-    }
-}
-
-static bool
-Deserialize() {
-    if (FileExists(FSFormatDataDirectory("data.ly"))) {
-        FILE *fptr;
-        fptr = fopen(FSFormatDataDirectory("data.ly"), "rb");
-        {
-            fread(&state->screen_size, sizeof(HMM_Vec2), 1, fptr);
-            fread(&state->window_position, sizeof(HMM_Vec2), 1, fptr);
-            fread(&state->master_volume, sizeof(F32), 1, fptr);
-
-            ReadString(state->music_fp, fptr);
-
-            U32 param_count;
-            fread(&param_count, sizeof(U32), 1, fptr);
-
-            for (U32 i = 0; i < param_count; ++i) {
-                char buf[256];
-                F32  value, min, max;
-
-                ReadString(buf, fptr);
-
-                char *name = ArenaPushString(&state->arena, buf);
-
-                fread(&value, sizeof(F32), 1, fptr);
-                fread(&min, sizeof(F32), 1, fptr);
-                fread(&max, sizeof(F32), 1, fptr);
-
-                if (hashmap_get(state->parameters,
-                                &(Parameter){.name = name})) {
-                    ParameterSet(state->parameters, &(Parameter){.name = name,
-                                                                 .value = value,
-                                                                 .min = min,
-                                                                 .max = max});
-                }
-            }
-        }
-        fclose(fptr);
-
-        return true;
-    }
-
-    return false;
-}
-
-static void
-RenderParameterSlider(const char *name,
-                      Rectangle   rect,
-                      const char *text_left,
-                      const char *text_right,
-                      F32         min,
-                      F32         max) {
+static void RenderParameterSlider(const char *name, Rectangle rect,
+                                  const char *text_left, const char *text_right,
+                                  F32 min, F32 max) {
     F32 val = ParameterGetValue(state->parameters, name);
 
     GuiSlider(rect, text_left, text_right, &val, min, max);
@@ -709,14 +543,13 @@ RenderParameterSlider(const char *name,
     ParameterSetValue(state->parameters, name, val);
 }
 
-static void
-RenderUI() {
-    F32        padding = 20;
-    F32        button_height = 25;
-    F32        font_size = 20;
-    F32        toggle_width = 25;
+static void RenderUI() {
+    F32 padding = 20;
+    F32 button_height = 25;
+    F32 font_size = 20;
+    F32 toggle_width = 25;
     Parameter *parameter;
-    U32        _, i = 0;
+    U32 _, i = 0;
 
     UIToggleMenuData data =
         UIMeasureToggleMenu(state->parameters, state->procedures, state->font,
@@ -808,22 +641,19 @@ RenderUI() {
     }
 }
 
-static void
-CircleFrequenciesProc(void *user_data) {
+static void CircleFrequenciesProc(void *user_data) {
     RendererDrawCircleFrequencies(state->renderer_data, state->frequency_count,
                                   state->frequencies,
                                   state->renderer_data->default_color_func);
 }
 
-static void
-NormalFrequenciesProc(void *user_data) {
+static void NormalFrequenciesProc(void *user_data) {
     RendererDrawFrequencies(state->renderer_data, state->frequency_count,
                             state->frequencies, true,
                             state->renderer_data->default_color_func);
 }
 
-static void
-Render() {
+static void Render() {
     ApiPreRender(state->api_data, state);
 
     _ProcedureCall(state->def_procs.circle_frequencies);
@@ -832,11 +662,10 @@ Render() {
     ApiRender(state->api_data, state);
 }
 
-static void
-BeginRecording() {
+static void BeginRecording() {
     state->condition = StateCondition_RECORDING;
 
-    if (!FSCanRunCMD("ffmpegs")) {
+    if (!FSCanRunCMD("ffmpeg")) {
         state->condition = StateCondition_NORMAL;
         StateAddPopUp("Please ensure FFMPEG is installed. Can't record :(");
         return;
@@ -868,16 +697,14 @@ BeginRecording() {
                       FadeAnimationUpdate, &state->arena);
 }
 
-static void
-EndRecording() {
+static void EndRecording() {
     FFMPEGEnd(state->ffmpeg);
 
     UnloadWave(state->record_data.wave);
     UnloadWaveSamples(state->record_data.wave_samples);
 }
 
-static void
-UpdateRecording() {
+static void UpdateRecording() {
     U32 chunk_size = state->record_data.wave.sampleRate / RENDER_FPS;
     F32(*frames)
     [state->record_data.wave.channels] =
@@ -885,10 +712,9 @@ UpdateRecording() {
     for (U32 i = 0; i < chunk_size; ++i) {
         if (state->record_data.wave_cursor <
             state->record_data.wave.frameCount) {
-            StatePushFrame(frames[state->record_data.wave_cursor][0],
-                           state->samples, SAMPLE_COUNT);
+            StatePushFrame(frames[state->record_data.wave_cursor][0]);
         } else {
-            StatePushFrame(0, state->samples, SAMPLE_COUNT);
+            StatePushFrame(0);
         }
         state->record_data.wave_cursor++;
     }
@@ -901,8 +727,7 @@ UpdateRecording() {
         state->zero_frequencies);
 }
 
-static void
-SetFrequencyCount() {
+static void SetFrequencyCount() {
     U32 freq_count;
     SignalsProcessSamples(
         LOG_MUL, START_FREQ, 0, SAMPLE_COUNT, NULL, &freq_count, 0,
@@ -918,29 +743,13 @@ SetFrequencyCount() {
     }
 }
 
-static B8
-GetDroppedFiles() {
+static B8 GetDroppedFiles() {
     B8 ret = false;
 
     FilePathList dropped_files = LoadDroppedFiles();
 
     if (dropped_files.count > 0) {
-        if (IsMusicReady(state->music)) {
-            DetachAudioStreamProcessor(state->music.stream, FrameCallback);
-            StopMusicStream(state->music);
-            UnloadMusicStream(state->music);
-        }
-
-        state->music = LoadMusicStream(dropped_files.paths[0]);
-        strcpy(state->music_fp, dropped_files.paths[0]);
-
-        if (IsMusicReady(state->music)) {
-            PlayMusicStream(state->music);
-            AttachAudioStreamProcessor(state->music.stream, FrameCallback);
-            ret = true;
-
-            SetWindowTitle(TextFormat("Apollo - %s", dropped_files.paths[0]));
-        }
+        StateLoadFile(dropped_files.paths[0]);
     }
 
     UnloadDroppedFiles(dropped_files);
@@ -948,28 +757,39 @@ GetDroppedFiles() {
     return ret;
 }
 
-void
-StatePushFrame(F32 val, F32 *samples, U32 sample_count) {
+bool StateGetLoopback() { return state->loopback; }
+
+void StateSetLoopback(bool val) {
+    if (val == true) {
+        PauseMusicStream(state->music);
+    } else {
+        ResumeMusicStream(state->music);
+    }
+
+    state->loopback = val;
+}
+
+void StatePushFrame(F32 val) {
+    F32 *samples = state->samples;
+    U32 sample_count = SAMPLE_COUNT;
+
     memmove(samples, samples + 1, (sample_count - 1) * sizeof(F32));
     samples[sample_count - 1] = val;
 }
 
-B8
-StateShouldClose() {
-    return state->should_close;
-}
+B8 StateShouldClose() { return state->should_close; }
 
-static void
-FrameCallback(void *buffer_data, U32 n) {
+static void FrameCallback(void *buffer_data, U32 n) {
     F32(*frame_data)[state->music.stream.channels] = buffer_data;
 
-    for (U32 i = 0; i < n; ++i) {
-        StatePushFrame(frame_data[i][0], state->samples, SAMPLE_COUNT);
+    if (!state->loopback) {
+        for (U32 i = 0; i < n; ++i) {
+            StatePushFrame(frame_data[i][0]);
+        }
     }
 }
 
-static void
-PrintEllipses(U32 max, F32 min, char buf[max + 1]) {
+static void PrintEllipses(U32 max, F32 min, char buf[max + 1]) {
     U32 n =
         MaxU32(roundf(0.5f * (max - min) * (sinf(5 * GetTime()) + 1) + min), 0);
 
@@ -983,3 +803,61 @@ PrintEllipses(U32 max, F32 min, char buf[max + 1]) {
 
     buf[max] = '\0';
 }
+
+static StateFont LoadStateFont(const char *fp) {
+    StateFont font;
+
+    U32 incr = MAX_FONT_SIZE / FONT_SIZES_PER_FONT;
+
+    for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
+        font.fonts[i] =
+            LoadFontEx(FSFormatAssetsDirectory(fp), (i + 1) * incr, NULL, 0);
+    }
+
+    return font;
+}
+
+static void UnloadStateFont(StateFont font) {
+    for (U32 i = 0; i < FONT_SIZES_PER_FONT; ++i) {
+        UnloadFont(font.fonts[i]);
+    }
+}
+
+static void CreateDirectories() {
+    char config[512];
+    FSGetConfigDirectory(config);
+    if (!DirectoryExists(config)) {
+        FSCreateDirectory(config);
+    }
+
+    char apollo[512];
+    FSGetApolloDirectory(apollo);
+
+    if (!DirectoryExists(apollo)) {
+        FSCreateDirectory(apollo);
+    }
+
+    if (!DirectoryExists(TextFormat("%s/shaders", apollo))) {
+        FSCreateDirectory(TextFormat("%s/shaders", apollo));
+    }
+}
+
+static void FadeInAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+    anim->val = sqrtf(1.0f - anim->elapsed / *(F32 *)user_data);
+
+    if (anim->val < 0.0) {
+        anim->val = 0.0f;
+        anim->finished = true;
+    }
+}
+
+static void CreateFilter(F32 *filter, U32 filter_count) {
+    I32 begin = (U32)floor((F32)filter_count / 2);
+
+    I32 end = (U32)ceil((F32)filter_count / 2);
+
+    for (I32 i = -begin; i < end; ++i) {
+        filter[i + begin] = expf(-i * i);
+    }
+}
+

@@ -12,8 +12,9 @@ ifeq ($(OS), Windows_NT)
 else 
 	CFLAGS=-Ilib/raylib/src -Ilib/lua-5.4.6/src -Ilib/miniaudio/ -Ilib/jsmn -Ilib/curl-8.5.0/include -Ilib/portaudio/include/
 	LDFLAGS=-lraylib -llua -L./lib/raylib/src/ -L./lib/lua-5.4.6/src -lportaudio
-	LDFLAGS+=-framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL -lcurl -L./build/
+	LDFLAGS+=-framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL -framework AppKit -framework UniformTypeIdentifiers -framework ScreenCaptureKit -framework CoreMedia -framework AVKit -framework AVFAudio -lcurl -L./build/
 	SRC=$(patsubst %_win32.c, , $(wildcard src/*.c))
+	SRC+=$(wildcard src/macos/*.m)
 	OUT=build/lynx
 	OS=Unix
 	COPY=cp -r
