@@ -3,6 +3,9 @@
 #include <Foundation/Foundation.h>
 #include <ScreenCaptureKit/ScreenCaptureKit.h>
 #include <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <objc/NSObjCRuntime.h>
+#include <objc/NSObject.h>
+#include <objc/objc.h>
 #include <stdio.h>
 
 #include "../state.h"
@@ -33,15 +36,61 @@
 }
 
 - (void)loopback {
-    StateSetLoopback(!StateGetLoopback());
+    StateToggleLoopback();
+}
+
+- (void)togglePlayPause {
+    StateTogglePlayPause();
 }
 @end
 
-void MacOSCreateMenus() {
-    MenuMethods *m = [MenuMethods new];
+@interface MenuItem : NSObject
+@property bool seperator;
+@property(strong) NSString *name;
+@property(strong) NSValue *method;
+@property(strong) NSString *keyEquivalent;
+@property(strong) NSMenuItem *item;
+@property NSInteger index;
+@end
 
-    NSMenu *menubar = [NSMenu new];
-    [NSApp setMainMenu:menubar];
+@implementation MenuItem
++ (id)withName:(NSString *)name
+           withMethod:(SEL)method
+    withKeyEquivalent:(NSString *)keyEquivalent {
+    return [[MenuItem alloc] initWithName:name
+                               withMethod:method
+                        withKeyEquivalent:keyEquivalent];
+}
+
++ (id)seperatorItem {
+    MenuItem *m = [MenuItem alloc];
+    [m setSeperator:true];
+    return m;
+}
+
+- (id)initWithName:(NSString *)name
+           withMethod:(SEL)method
+    withKeyEquivalent:(NSString *)keyEquivalent {
+    [self setName:name];
+    [self setMethod:[NSValue valueWithPointer:method]];
+    [self setKeyEquivalent:keyEquivalent];
+    return self;
+}
+
+- (SEL)getMethod {
+    return [[self method] pointerValue];
+}
+@end
+
+@interface MenuBuilder : NSObject
+@property(strong) NSMenu *menubar;
+@property(strong) NSMutableDictionary<NSString *, MenuItem *> *items;
+
+@end
+
+@implementation MenuBuilder
+- (id)init {
+    [self setMenubar:[NSMenu new]];
 
     NSMenuItem *appMenu = [NSMenuItem new];
     NSMenu *appDropdown = [NSMenu new];
@@ -49,25 +98,105 @@ void MacOSCreateMenus() {
                            action:@selector(terminate:)
                     keyEquivalent:@"q"];
     [appMenu setSubmenu:appDropdown];
-    [menubar addItem:appMenu];
+    [[self menubar] addItem:appMenu];
+    [self setItems:[[NSMutableDictionary alloc] init]];
 
-    NSMenuItem *fileMenu = [NSMenuItem new];
-    NSMenu *fileMenuDropdown = [[NSMenu alloc] initWithTitle:@"File"];
-    NSMenuItem *load = [[NSMenuItem alloc] initWithTitle:@"Open"
-                                                  action:@selector(load)
-                                           keyEquivalent:@"o"];
-    [load setTarget:m];
-    [fileMenuDropdown addItem:load];
-    [fileMenu setSubmenu:fileMenuDropdown];
-    [menubar addItem:fileMenu];
+    return self;
+}
 
-    NSMenuItem *playbackMenu = [NSMenuItem new];
-    NSMenu *playbackMenuDropdown = [[NSMenu alloc] initWithTitle:@"Playback"];
-    NSMenuItem *loopback = [[NSMenuItem alloc] initWithTitle:@"Toggle Loopback"
-                                                      action:@selector(loopback)
-                                               keyEquivalent:@"L"];
-    [loopback setTarget:m];
-    [playbackMenuDropdown addItem:loopback];
-    [playbackMenu setSubmenu:playbackMenuDropdown];
-    [menubar addItem:playbackMenu];
+- (void)setMainMenu {
+    [NSApp setMainMenu:[self menubar]];
+}
+
+- (void)addMenuDropdown:(NSString *)name
+              withItems:(NSArray<MenuItem *> *)items
+             withTarget:(id)target {
+    NSMenuItem *menu = [NSMenuItem new];
+    NSMenu *dropdown = [[NSMenu alloc] initWithTitle:name];
+
+    for (id item in items) {
+        if ([item seperator]) {
+            [dropdown addItem:[NSMenuItem separatorItem]];
+            continue;
+        }
+
+        SEL method = [[item method] pointerValue];
+        NSMenuItem *newItem =
+            [[NSMenuItem alloc] initWithTitle:[item name]
+                                       action:method
+                                keyEquivalent:[item keyEquivalent]];
+
+        [item setItem:newItem];
+        [item setIndex:[dropdown numberOfItems]];
+        [newItem setTarget:target];
+        [dropdown addItem:newItem];
+        [[self items] setObject:item forKey:[item name]];
+    }
+
+    [menu setSubmenu:dropdown];
+    [[self menubar] addItem:menu];
+}
+
+- (void)changeItemTitle:(MenuItem *)item withNewTitle:(NSString *)newTitle {
+    [[item item] setTitle:newTitle];
+}
+
+- (void)changeItemTitleWithTitle:(NSString *)title
+                    withNewTitle:(NSString *)newTitle {
+    MenuItem *item = [[self items] objectForKey:title];
+
+    [[item item] setTitle:newTitle];
+
+    // Update items dictionary
+    [[self items] removeObjectForKey:title];
+    [[self items] setObject:item forKey:newTitle];
+}
+@end
+
+typedef struct MenuData {
+    MenuBuilder *builder;
+} MenuData;
+
+void MenuTogglePlayPause(MenuData *data) {
+    if (StateIsPaused()) {
+        [data->builder changeItemTitleWithTitle:@"Play" withNewTitle:@"Pause"];
+        return;
+    }
+
+    [data->builder changeItemTitleWithTitle:@"Pause" withNewTitle:@"Play"];
+}
+
+MenuData *MenuCreate(MemoryArena *arena) {
+    MenuData *data = ArenaPushStruct(arena, MenuData);
+
+    MenuMethods *m = [MenuMethods new];
+
+    MenuBuilder *builder = [[MenuBuilder alloc] init];
+    [builder setMainMenu];
+
+    MenuItem *openItem = [MenuItem withName:@"Open"
+                                 withMethod:@selector(load)
+                          withKeyEquivalent:@"o"];
+
+    [builder addMenuDropdown:@"File" withItems:@[ openItem ] withTarget:m];
+
+    MenuItem *togglePlayPauseItem =
+        [MenuItem withName:StateIsPaused() ? @"Play" : @"Pause"
+                   withMethod:@selector(togglePlayPause)
+            withKeyEquivalent:@" "];
+
+    MenuItem *toggleLoopbackItem = [MenuItem withName:@"Toggle Loopback"
+                                           withMethod:@selector(loopback)
+                                    withKeyEquivalent:@"L"];
+
+    [builder addMenuDropdown:@"Playback"
+                   withItems:@[
+                       togglePlayPauseItem, [MenuItem seperatorItem],
+                       toggleLoopbackItem
+                   ]
+                  withTarget:m];
+
+    data->builder = builder;
+
+    return data;
 }

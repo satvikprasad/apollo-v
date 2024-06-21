@@ -1,4 +1,4 @@
-#include "loopback.h"
+#include "../loopback.h"
 #include "../state.h"
 
 #include <AVFAudio/AVFAudio.h>
@@ -131,7 +131,7 @@ void StartAudioLoopback(SCShareableContent *_Nullable shareableContent) {
     }];
 }
 
-void MacOSLoopbackBegin() {
+void LoopbackBegin() {
     [SCShareableContent
         getShareableContentExcludingDesktopWindows:false
                                onScreenWindowsOnly:false

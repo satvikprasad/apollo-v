@@ -8,6 +8,7 @@
 #include "defines.h"
 #include "handmademath.h"
 #include "hashmap.h"
+#include "menu.h"
 #include "parameter.h"
 #include "procedures.h"
 #include "raylib.h"
@@ -18,6 +19,7 @@ typedef struct State State;
 
 typedef enum StateCondition {
     StateCondition_NORMAL = 0,
+    StateCondition_LOOPBACK,
     StateCondition_ERROR,
     StateCondition_LOAD,
     StateCondition_RECORDING,
@@ -63,6 +65,7 @@ typedef struct State {
     RendererData *renderer_data;
     ApiData *api_data;
     ServerData *server_data;
+    MenuData *menu_data;
 
     Thread *recording_thread;
 
@@ -120,7 +123,6 @@ typedef struct State {
     B8 render_ui;
     B8 ui;
     B8 should_close;
-    B8 loopback;
 
     B8 zero_frequencies;
 
@@ -137,8 +139,11 @@ void StateRender();
 void StateDestroy();
 void StatePushFrame(F32 val);
 
-void StateSetLoopback(bool val);
+void StateToggleLoopback();
 bool StateGetLoopback();
+
+void StateTogglePlayPause();
+bool StateIsPaused();
 
 bool StateLoadFile(const char *filename);
 

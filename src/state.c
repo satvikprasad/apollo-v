@@ -18,8 +18,8 @@
 #include "handmademath.h"
 #include "io.h"
 #include "lmath.h"
-#include "macos/loopback.h"
-#include "macos/menu.h"
+#include "loopback.h"
+#include "menu.h"
 #include "parameter.h"
 #include "permanent_storage.h"
 #include "procedures.h"
@@ -86,8 +86,7 @@ bool StateLoadFile(const char *fp) {
 }
 
 void StateInitialise() {
-    MacOSLoopbackBegin();
-    MacOSCreateMenus();
+    LoopbackBegin();
 
     CreateDirectories();
 
@@ -190,6 +189,8 @@ void StateInitialise() {
 
     RendererInitialise(state->renderer_data);
     ServerInitialise(state->server_data, API_URI, &state->arena);
+
+    state->menu_data = MenuCreate(&state->arena);
 
     state->def_anims.fade_in =
         AnimationsAdd(state->animations, "fade_in", &(F32){0.74f},
@@ -299,6 +300,20 @@ void StateRemovePopUp() {
                       PopUpExitAnimationUpdate, &state->arena);
 }
 
+bool StateIsPaused() { return IsMusicStreamPlaying(state->music); }
+
+void StateTogglePlayPause() {
+    if (IsMusicStreamPlaying(state->music)) {
+        MenuTogglePlayPause(state->menu_data);
+
+        PauseMusicStream(state->music);
+    } else {
+        MenuTogglePlayPause(state->menu_data);
+
+        ResumeMusicStream(state->music);
+    }
+}
+
 void StateUpdate() {
     ApiUpdate(state->api_data, state);
     AnimationsUpdate(state->animations);
@@ -329,27 +344,20 @@ void StateUpdate() {
     case StateCondition_NORMAL: {
         ApiPreUpdate(state->api_data, state);
 
-        if (state->loopback) {
-            if (IsKeyPressed(KEY_R)) {
-                SeekMusicStream(state->music, 0);
-            }
+        if (IsKeyPressed(KEY_R)) {
+            SeekMusicStream(state->music, 0);
+        }
 
-            if (IsKeyPressed(KEY_SPACE)) {
-                if (IsMusicStreamPlaying(state->music)) {
-                    PauseMusicStream(state->music);
-                } else {
-                    ResumeMusicStream(state->music);
-                }
-            }
+        if (IsKeyPressed(KEY_SPACE)) {
+            StateTogglePlayPause();
+        }
 
-            if (IsKeyPressed(KEY_M) && !IsKeyDown(KEY_LEFT_CONTROL) &&
-                IsMusicReady(state->music)) {
-                if (_ParameterGetValue(state->def_params.master_volume) !=
-                    0.f) {
-                    _ParameterSetValue(state->def_params.master_volume, 0.f);
-                } else {
-                    _ParameterSetValue(state->def_params.master_volume, 100.f);
-                }
+        if (IsKeyPressed(KEY_M) && !IsKeyDown(KEY_LEFT_CONTROL) &&
+            IsMusicReady(state->music)) {
+            if (_ParameterGetValue(state->def_params.master_volume) != 0.f) {
+                _ParameterSetValue(state->def_params.master_volume, 0.f);
+            } else {
+                _ParameterSetValue(state->def_params.master_volume, 100.f);
             }
         }
 
@@ -387,6 +395,15 @@ void StateUpdate() {
             state->filter_count, _ParameterGetValue(state->def_params.velocity),
             state->zero_frequencies);
 
+    } break;
+
+    case StateCondition_LOOPBACK: {
+        SignalsProcessSamples(
+            LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT,
+            state->frequencies, &state->frequency_count, state->dt,
+            (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
+            state->filter_count, _ParameterGetValue(state->def_params.velocity),
+            state->zero_frequencies);
     } break;
 
     case StateCondition_ERROR: {
@@ -435,6 +452,7 @@ void StateRender() {
                     255 * AnimationsLoad_(state->animations,
                                           state->def_anims.exiting)});
     } break;
+    case StateCondition_LOOPBACK:
     case StateCondition_NORMAL: {
         if (!IsMusicReady(state->music)) {
             state->condition = StateCondition_LOAD;
@@ -447,7 +465,7 @@ void StateRender() {
         if (state->render_ui) {
             RenderUI();
 
-            // Render Pop-Ups
+            // Render Pop-Ups -- TODO: Clean this up.
             if (state->pop_up_count > 0 && state->ui) {
                 F32 pop_up_padding = 25;
                 F32 pop_up_height = 50;
@@ -757,16 +775,24 @@ static B8 GetDroppedFiles() {
     return ret;
 }
 
-bool StateGetLoopback() { return state->loopback; }
+bool StateGetLoopback() { return state->condition == StateCondition_LOOPBACK; }
 
-void StateSetLoopback(bool val) {
-    if (val == true) {
+void StateToggleLoopback() {
+    switch (state->condition) {
+    case StateCondition_NORMAL:
+        // Change condition to loopback mode.
         PauseMusicStream(state->music);
-    } else {
+        state->condition = StateCondition_LOOPBACK;
+        break;
+    case StateCondition_LOOPBACK:
+        // Change condition to normal.
         ResumeMusicStream(state->music);
+        state->condition = StateCondition_NORMAL;
+        break;
+    default:
+        return;
+        break;
     }
-
-    state->loopback = val;
 }
 
 void StatePushFrame(F32 val) {
@@ -782,7 +808,7 @@ B8 StateShouldClose() { return state->should_close; }
 static void FrameCallback(void *buffer_data, U32 n) {
     F32(*frame_data)[state->music.stream.channels] = buffer_data;
 
-    if (!state->loopback) {
+    if (!StateGetLoopback()) {
         for (U32 i = 0; i < n; ++i) {
             StatePushFrame(frame_data[i][0]);
         }
