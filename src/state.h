@@ -123,6 +123,7 @@ typedef struct State {
     B8 render_ui;
     B8 ui;
     B8 should_close;
+    B8 should_open_on_loopback;
 
     B8 zero_frequencies;
 
@@ -139,12 +140,22 @@ void StateRender();
 void StateDestroy();
 void StatePushFrame(F32 val);
 
+void StateSetCondition(StateCondition cond);
+
 void StateToggleLoopback();
 bool StateGetLoopback();
 
 void StateTogglePlayPause();
 bool StateIsPaused();
 
+void StateToggleMenu();
+bool StateIsShowingMenu();
+
+void StateToggleProcedure(const char *proc_name);
+B8 StateIterProcedures(U32 *iter, Procedure **procedure);
+
 bool StateLoadFile(const char *filename);
+
+void StateSetZeroFrequencies(bool v);
 
 B8 StateShouldClose();

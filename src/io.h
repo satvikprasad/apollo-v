@@ -2,8 +2,6 @@
 
 #include "state.h"
 
-void
-Serialize(State *state);
+void Serialize(State *state);
 
-bool
-Deserialize(State *state);
+bool Deserialize(State *state);

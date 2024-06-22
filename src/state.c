@@ -41,6 +41,7 @@ static void UpdateRecording();
 
 static void SetFrequencyCount();
 static B8 GetDroppedFiles();
+static void CheckForDroppedFiles();
 
 static void FrameCallback(void *buffer_data, U32 n);
 
@@ -84,6 +85,10 @@ bool StateLoadFile(const char *fp) {
 
     return false;
 }
+
+void StateSetZeroFrequencies(bool v) { state->zero_frequencies = v; }
+
+void StateSetCondition(StateCondition cond) { state->condition = cond; }
 
 void StateInitialise() {
     LoopbackBegin();
@@ -249,6 +254,10 @@ void BeginExiting() {
                     TextFormat("{\"time\": %f}", GetTime()),
                     &state->should_close, AddMetricCallback, &state->arena);
 
+    if (StateGetLoopback()) {
+        state->should_open_on_loopback = true;
+    }
+
     state->condition = StateCondition_EXITING;
     state->def_anims.exiting =
         AnimationsAdd(state->animations, "exiting", &(F32){1.0f},
@@ -300,16 +309,15 @@ void StateRemovePopUp() {
                       PopUpExitAnimationUpdate, &state->arena);
 }
 
-bool StateIsPaused() { return IsMusicStreamPlaying(state->music); }
+bool StateIsPaused() { return !IsMusicStreamPlaying(state->music); }
+
+void StateToggleMenu() { state->render_ui = !state->render_ui; }
+bool StateIsShowingMenu() { return state->render_ui; }
 
 void StateTogglePlayPause() {
     if (IsMusicStreamPlaying(state->music)) {
-        MenuTogglePlayPause(state->menu_data);
-
         PauseMusicStream(state->music);
     } else {
-        MenuTogglePlayPause(state->menu_data);
-
         ResumeMusicStream(state->music);
     }
 }
@@ -374,18 +382,14 @@ void StateUpdate() {
         SetMasterVolume(_ParameterGetValue(state->def_params.master_volume) /
                         100.f);
 
-        if (IsFileDropped()) {
-            if (!GetDroppedFiles()) {
-                state->condition = StateCondition_LOAD;
-            }
-        }
+        CheckForDroppedFiles();
 
         if (IsKeyPressed(KEY_B) && IsMusicReady(state->music)) {
             BeginRecording();
         }
 
         if (IsKeyPressed(KEY_M) && IsKeyDown(KEY_LEFT_CONTROL)) {
-            state->render_ui = !state->render_ui;
+            StateToggleMenu();
         }
 
         SignalsProcessSamples(
@@ -398,6 +402,8 @@ void StateUpdate() {
     } break;
 
     case StateCondition_LOOPBACK: {
+        CheckForDroppedFiles();
+
         SignalsProcessSamples(
             LOG_MUL, START_FREQ, state->samples, SAMPLE_COUNT,
             state->frequencies, &state->frequency_count, state->dt,
@@ -767,7 +773,7 @@ static B8 GetDroppedFiles() {
     FilePathList dropped_files = LoadDroppedFiles();
 
     if (dropped_files.count > 0) {
-        StateLoadFile(dropped_files.paths[0]);
+        ret = StateLoadFile(dropped_files.paths[0]);
     }
 
     UnloadDroppedFiles(dropped_files);
@@ -776,6 +782,14 @@ static B8 GetDroppedFiles() {
 }
 
 bool StateGetLoopback() { return state->condition == StateCondition_LOOPBACK; }
+
+void StateToggleProcedure(const char *proc_name) {
+    ProcedureToggle(state->procedures, proc_name);
+}
+
+B8 StateIterProcedures(U32 *iter, Procedure **procedure) {
+    return ProcedureIter(state->procedures, iter, procedure);
+}
 
 void StateToggleLoopback() {
     switch (state->condition) {
@@ -887,3 +901,12 @@ static void CreateFilter(F32 *filter, U32 filter_count) {
     }
 }
 
+static void CheckForDroppedFiles() {
+    if (IsFileDropped()) {
+        if (!GetDroppedFiles()) {
+            state->condition = StateCondition_LOAD;
+        } else {
+            state->condition = StateCondition_NORMAL;
+        }
+    }
+}

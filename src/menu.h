@@ -6,4 +6,3 @@
 typedef struct MenuData MenuData;
 
 MenuData *MenuCreate(MemoryArena *arena);
-void MenuTogglePlayPause(MenuData *data);

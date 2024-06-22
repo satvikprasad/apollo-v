@@ -70,11 +70,18 @@
                     free(bufferList);
                   }];
 
+        B8 nothing_playing = true;
         if (StateGetLoopback()) {
             for (uint i = 0; i < buffer.frameLength; ++i) {
+                if (buffer.floatChannelData[0][i] != 0) {
+                    nothing_playing = false;
+                }
+
                 StatePushFrame(buffer.floatChannelData[0][i]);
             }
         }
+
+        StateSetZeroFrequencies(nothing_playing);
 
         CFRelease(block);
     } break;
@@ -108,6 +115,7 @@ void StartAudioLoopback(SCShareableContent *_Nullable shareableContent) {
     [config setExcludesCurrentProcessAudio:true];
     [config setSampleRate:48000];
     [config setChannelCount:2];
+    [config setMinimumFrameInterval:CMTimeMake(0, 144)];
 
     StreamOutput *streamOutput = [[StreamOutput alloc] init];
 
