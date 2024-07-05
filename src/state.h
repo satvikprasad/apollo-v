@@ -158,4 +158,7 @@ bool StateLoadFile(const char *filename);
 
 void StateSetZeroFrequencies(bool v);
 
+void StateToggleMuted();
+bool StateGetMuted();
+
 B8 StateShouldClose();

@@ -27,6 +27,7 @@ build: $(SRC)
 	$(CC) $(SRC) -Wall -Wextra -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-pointer-type-mismatch -g -o $(OUT) $(CFLAGS) $(LDFLAGS)
 
 run: build assets
+	cp ./lua/init.lua ~/.config/apollo/init.lua
 	@./build/lynx
 
 clean: 

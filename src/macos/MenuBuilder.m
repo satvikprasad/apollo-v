@@ -3,6 +3,37 @@
 
 #include "MenuBuilder.h"
 
+@implementation MenuItemToggle
++ (MenuItemToggle *)withToggleOn:(NSString *)on
+                         withOff:(NSString *)off
+                      withGetter:(ToggleGetter)g
+                     withToggler:(ToggleToggler)t {
+    MenuItemToggle *toggle = [MenuItemToggle alloc];
+    [toggle setOn:on];
+    [toggle setOff:off];
+    [toggle setG:g];
+    [toggle setT:t];
+
+    return toggle;
+}
+
+- (void)toggle:(id)sender {
+    if ([self g]()) {
+        [[self builder] changeItemTitleWithTitle:[self on]
+                                    withNewTitle:[self off]];
+    } else {
+        [[self builder] changeItemTitleWithTitle:[self off]
+                                    withNewTitle:[self on]];
+    }
+
+    [self t]();
+
+    if ([self method]) {
+        [[self target] performSelector:[[self method] pointerValue]];
+    }
+}
+@end
+
 @implementation MenuProcedureToggle
 - (instancetype)initWithFrame:(NSRect)frameRect {
     MenuProcedureToggle *tog = [super initWithFrame:frameRect];
@@ -42,6 +73,7 @@
                                withMethod:method
                         withKeyEquivalent:keyEquivalent];
 }
+
 + (id)withName:(NSString *)name
            withMethod:(SEL)method
     withKeyEquivalent:(NSString *)keyEquivalent
@@ -50,6 +82,24 @@
                              withMethod:method
                       withKeyEquivalent:keyEquivalent];
     [item setView:view];
+    return item;
+}
+
++ (id)withToggleOn:(NSString *)on
+            toggleOff:(NSString *)off
+           withGetter:(ToggleGetter)g
+          withToggler:(ToggleToggler)t
+           withMethod:(SEL)method
+    withKeyEquivalent:(NSString *)keyEquivalent {
+    MenuItem *item = [MenuItem withName:g() ? on : off
+                             withMethod:method
+                      withKeyEquivalent:keyEquivalent];
+
+    [item setToggle:[MenuItemToggle withToggleOn:on
+                                         withOff:off
+                                      withGetter:g
+                                     withToggler:t]];
+
     return item;
 }
 
@@ -63,8 +113,13 @@
            withMethod:(SEL)method
     withKeyEquivalent:(NSString *)keyEquivalent {
     [self setName:name];
-    [self setMethod:[NSValue valueWithPointer:method]];
+
+    if (method) {
+        [self setMethod:[NSValue valueWithPointer:method]];
+    }
+
     [self setKeyEquivalent:keyEquivalent];
+    [self setToggle:nil];
     return self;
 }
 
@@ -105,15 +160,26 @@
             continue;
         }
 
-        SEL method = [[item method] pointerValue];
-        NSMenuItem *newItem =
-            [[NSMenuItem alloc] initWithTitle:[item name]
-                                       action:method
-                                keyEquivalent:[item keyEquivalent]];
+        NSMenuItem *newItem;
+
+        if ([item toggle]) {
+            newItem = [[NSMenuItem alloc] initWithTitle:[item name]
+                                                 action:@selector(toggle:)
+                                          keyEquivalent:[item keyEquivalent]];
+            [[item toggle] setBuilder:self];
+            [[item toggle] setTarget:[self target]];
+            [[item toggle] setMethod:[item method]];
+            [newItem setTarget:[item toggle]];
+        } else {
+            SEL method = [[item method] pointerValue];
+            newItem = [[NSMenuItem alloc] initWithTitle:[item name]
+                                                 action:method
+                                          keyEquivalent:[item keyEquivalent]];
+            [newItem setTarget:[self target]];
+        }
 
         [item setItem:newItem];
         [item setIndex:[dropdown numberOfItems]];
-        [newItem setTarget:[self target]];
 
         if ([item view]) {
             [newItem setView:[item view]];

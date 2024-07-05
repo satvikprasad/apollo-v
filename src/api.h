@@ -36,6 +36,7 @@
     X(L_GetBgColor, get_bg_color)                                              \
     X(L_GetScreenSize, get_screen_size)                                        \
     X(L_GetSamples, get_samples)                                               \
+    X(L_GetSampleFrequencies, get_sample_frequencies)                          \
     X(L_SmoothSignal, smooth_signal)                                           \
     X(L_BindShader, bind_shader)                                               \
     X(L_UnbindShader, unbind_shader)
@@ -59,35 +60,28 @@ typedef struct ApiShader {
 
 #define MAX_API_CALLBACKS 256
 typedef struct ApiData {
-    lua_State   *lua;
+    lua_State *lua;
     ApiInterface data;
 
     ApiCallback pre_update[MAX_API_CALLBACKS];
-    U32         pre_update_count;
+    U32 pre_update_count;
 
     ApiCallback on_update[MAX_API_CALLBACKS];
-    U32         on_update_count;
+    U32 on_update_count;
 
     ApiCallback pre_render[MAX_API_CALLBACKS];
-    U32         pre_render_count;
+    U32 pre_render_count;
 
     ApiCallback on_render[MAX_API_CALLBACKS];
-    U32         on_render_count;
+    U32 on_render_count;
 
     HM_Hashmap *shaders;
 } ApiData;
 
-void
-ApiInitialise(const char *api_fp, void *state, ApiData *api);
-void
-ApiPreUpdate(ApiData *api, void *state);
-void
-ApiUpdate(ApiData *api, void *state);
-void
-ApiPreRender(ApiData *api, void *state);
-void
-ApiRender(ApiData *api, void *state);
-void
-ApiDestroy(ApiData *api);
-void
-ApiError(lua_State *L, const char *msg);
+void ApiInitialise(const char *api_fp, void *state, ApiData *api);
+void ApiPreUpdate(ApiData *api, void *state);
+void ApiUpdate(ApiData *api, void *state);
+void ApiPreRender(ApiData *api, void *state);
+void ApiRender(ApiData *api, void *state);
+void ApiDestroy(ApiData *api);
+void ApiError(lua_State *L, const char *msg);

@@ -40,47 +40,6 @@
                     }
                   }];
 }
-
-- (void)loopback {
-    if (StateGetLoopback()) {
-        [[self builder] changeItemTitleWithTitle:@"Disable Passthrough"
-                                    withNewTitle:@"Enable Passthrough"];
-    } else {
-        [[self builder] changeItemTitleWithTitle:@"Enable Passthrough"
-                                    withNewTitle:@"Disable Passthrough"];
-    }
-
-    StateToggleLoopback();
-
-    [[self builder] setItemEnabledWithTitle:@"Play" to:!StateGetLoopback()];
-    [[self builder] setItemEnabledWithTitle:@"Pause" to:!StateGetLoopback()];
-
-    [[self builder] changeItemTitleWithTitle:@"Play" withNewTitle:@"Pause"];
-}
-
-- (void)togglePlayPause {
-    if (StateIsPaused()) {
-        [[self builder] changeItemTitleWithTitle:@"Play" withNewTitle:@"Pause"];
-        return;
-    }
-
-    [[self builder] changeItemTitleWithTitle:@"Pause" withNewTitle:@"Play"];
-
-    StateTogglePlayPause();
-}
-
-- (void)toggleMenu {
-    if (StateIsShowingMenu()) {
-        [[self builder] changeItemTitleWithTitle:@"Hide Menu"
-                                    withNewTitle:@"Show Menu"];
-    } else {
-        [[self builder] changeItemTitleWithTitle:@"Show Menu"
-                                    withNewTitle:@"Hide Menu"];
-    }
-
-    StateToggleMenu();
-}
-
 - (void)toggleSwitch:(MenuProcedureToggle *)sender {
     StateToggleProcedure([[sender parameterName] cString]);
 }
@@ -105,25 +64,40 @@ MenuData *MenuCreate(MemoryArena *arena) {
 
     [builder addMenuDropdown:@"File" withItems:@[ openItem ]];
 
-    MenuItem *togglePlayPauseItem =
-        [MenuItem withName:StateIsPaused() ? @"Play" : @"Pause"
-                   withMethod:@selector(togglePlayPause)
-            withKeyEquivalent:@" "];
+    MenuItem *togglePlayPauseItem = [MenuItem withToggleOn:@"Play"
+                                                 toggleOff:@"Pause"
+                                                withGetter:StateIsPaused
+                                               withToggler:StateTogglePlayPause
+                                                withMethod:nil
+                                         withKeyEquivalent:@" "];
 
-    MenuItem *toggleLoopbackItem = [MenuItem withName:@"Enable Passthrough"
-                                           withMethod:@selector(loopback)
-                                    withKeyEquivalent:@"L"];
+    MenuItem *toggleLoopbackItem = [MenuItem withToggleOn:@"Disable Passthrough"
+                                                toggleOff:@"Enable Passthrough"
+                                               withGetter:StateGetLoopback
+                                              withToggler:StateToggleLoopback
+                                               withMethod:nil
+                                        withKeyEquivalent:@"L"];
+
+    MenuItem *toggleMutedItem = [MenuItem withToggleOn:@"Unmute"
+                                             toggleOff:@"Mute"
+                                            withGetter:StateGetMuted
+                                           withToggler:StateToggleMuted
+                                            withMethod:nil
+                                     withKeyEquivalent:@"M"];
 
     [builder addMenuDropdown:@"Playback"
                    withItems:@[
-                       togglePlayPauseItem, [MenuItem seperatorItem],
-                       toggleLoopbackItem
+                       togglePlayPauseItem, toggleMutedItem,
+                       [MenuItem seperatorItem], toggleLoopbackItem
                    ]];
 
     NSMutableArray *viewMenu = [[NSMutableArray alloc] initWithArray:@[
-        [MenuItem withName:@"Show Menu"
-                   withMethod:@selector(toggleMenu)
-            withKeyEquivalent:@"m"],
+        [MenuItem withToggleOn:@"Hide Menu"
+                     toggleOff:@"Show Menu"
+                    withGetter:StateIsShowingMenu
+                   withToggler:StateToggleMenu
+                    withMethod:nil
+             withKeyEquivalent:@"m"],
         [MenuItem seperatorItem]
     ]];
 

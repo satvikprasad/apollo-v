@@ -115,7 +115,7 @@ void StartAudioLoopback(SCShareableContent *_Nullable shareableContent) {
     [config setExcludesCurrentProcessAudio:true];
     [config setSampleRate:48000];
     [config setChannelCount:2];
-    [config setMinimumFrameInterval:CMTimeMake(0, 144)];
+    [config setMinimumFrameInterval:CMTimeMake(1, 144)];
 
     StreamOutput *streamOutput = [[StreamOutput alloc] init];
 

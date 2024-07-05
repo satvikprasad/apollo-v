@@ -10,3 +10,4 @@ lib/curl-8.5.0/
 *.app
 *.dmg
 *.mp4
+docs/

@@ -17,7 +17,6 @@
 #include <lauxlib.h>
 #include <lualib.h>
 
-#include <math.h>
 #include <raylib.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,26 +34,19 @@ State *p_state;
         return 0;                                                              \
     }
 
-static Color
-PopColor(lua_State *L);
+static Color PopColor(lua_State *L);
 
-static void
-PushColor(lua_State *L, Color c);
+static void PushColor(lua_State *L, Color c);
 
-static HMM_Vec2
-PopVec2(lua_State *L);
+static HMM_Vec2 PopVec2(lua_State *L);
 
-static void
-PushVec2(lua_State *L, HMM_Vec2 vec);
+static void PushVec2(lua_State *L, HMM_Vec2 vec);
 
-static void
-PushApi(ApiData *api);
+static void PushApi(ApiData *api);
 
-static ApiInterface
-PopApi(ApiData *api);
+static ApiInterface PopApi(ApiData *api);
 
-static int
-RegisterCallback(lua_State *L);
+static int RegisterCallback(lua_State *L);
 
 #define CallCallback(L, callback, args)                                        \
     if (!CallCallback_((L), (callback), (args))) {                             \
@@ -62,14 +54,11 @@ RegisterCallback(lua_State *L);
                lua_tostring(L, -1));                                           \
     }
 
-static B8
-CallCallback_(lua_State *L, int *callback, U32 args);
+static B8 CallCallback_(lua_State *L, int *callback, U32 args);
 
-static void
-FreeCallback(lua_State *L, int *callback);
+static void FreeCallback(lua_State *L, int *callback);
 
-static void
-DumpStack(lua_State *L) {
+static void DumpStack(lua_State *L) {
     int top = lua_gettop(L);
     for (int i = 1; i <= top; i++) {
         printf("%d\t%s\t", i, luaL_typename(L, i));
@@ -101,8 +90,7 @@ API_METHODS_PROCS
 API_METHODS_PARAMS
 #undef X
 
-static void
-SetPath(lua_State *L, const char *path) {
+static void SetPath(lua_State *L, const char *path) {
     lua_getglobal(L, "package");
     lua_getfield(L, -1, "path");
 
@@ -118,8 +106,7 @@ SetPath(lua_State *L, const char *path) {
     lua_pop(L, 1);
 }
 
-static U64
-ApiShaderHash(const void *item, U64 seed0, U64 seed1) {
+static U64 ApiShaderHash(const void *item, U64 seed0, U64 seed1) {
     ApiShader *pshader = (ApiShader *)item;
 
     char buf[512];
@@ -129,8 +116,7 @@ ApiShaderHash(const void *item, U64 seed0, U64 seed1) {
     return hashmap_sip(buf, strlen(buf), seed0, seed1);
 }
 
-static I32
-ApiShaderCompare(const void *a, const void *b, void *udata) {
+static I32 ApiShaderCompare(const void *a, const void *b, void *udata) {
     (void)(udata);
 
     ApiShader *pa = (ApiShader *)a;
@@ -145,13 +131,9 @@ ApiShaderCompare(const void *a, const void *b, void *udata) {
     return strcmp(bufa, bufb);
 }
 
-static void
-ApiShaderFree(void *el) {
-    UnloadShader(((ApiShader *)el)->shader);
-}
+static void ApiShaderFree(void *el) { UnloadShader(((ApiShader *)el)->shader); }
 
-void
-ApiInitialise(const char *api_fp, void *state, ApiData *api) {
+void ApiInitialise(const char *api_fp, void *state, ApiData *api) {
     p_state = (State *)state;
 
     api->lua = luaL_newstate();
@@ -186,8 +168,7 @@ ApiInitialise(const char *api_fp, void *state, ApiData *api) {
     api->data = PopApi(api);
 }
 
-void
-ApiPreUpdate(ApiData *api, void *state) {
+void ApiPreUpdate(ApiData *api, void *state) {
     p_state = (State *)state;
 
     for (U32 i = 0; i < api->pre_update_count; ++i) {
@@ -197,8 +178,7 @@ ApiPreUpdate(ApiData *api, void *state) {
     }
 }
 
-void
-ApiUpdate(ApiData *api, void *state) {
+void ApiUpdate(ApiData *api, void *state) {
     p_state = (State *)state;
 
     for (U32 i = 0; i < api->on_update_count; ++i) {
@@ -208,8 +188,7 @@ ApiUpdate(ApiData *api, void *state) {
     }
 }
 
-void
-ApiPreRender(ApiData *api, void *state) {
+void ApiPreRender(ApiData *api, void *state) {
     p_state = (State *)state;
 
     for (U32 i = 0; i < api->pre_render_count; ++i) {
@@ -219,8 +198,7 @@ ApiPreRender(ApiData *api, void *state) {
     }
 }
 
-void
-ApiRender(ApiData *api, void *state) {
+void ApiRender(ApiData *api, void *state) {
     p_state = (State *)state;
 
     for (U32 i = 0; i < api->on_render_count; ++i) {
@@ -230,8 +208,7 @@ ApiRender(ApiData *api, void *state) {
     }
 }
 
-void
-ApiDestroy(ApiData *api) {
+void ApiDestroy(ApiData *api) {
     for (U32 i = 0; i < api->on_update_count; ++i) {
         if (api->on_update[i] != -1) {
             FreeCallback(api->lua, &api->on_update[i]);
@@ -261,8 +238,7 @@ ApiDestroy(ApiData *api) {
     lua_close(api->lua);
 }
 
-void
-PushApi(ApiData *api) {
+void PushApi(ApiData *api) {
     lua_newtable(api->lua);
     {
         lua_pushstring(api->lua, "opt");
@@ -300,8 +276,7 @@ PushApi(ApiData *api) {
     lua_setglobal(api->lua, "lynx");
 }
 
-Color
-PopColor(lua_State *L) {
+Color PopColor(lua_State *L) {
     if (!lua_istable(L, -1)) {
         ApiError(L, "tried parsing non-table color");
         return (Color){0};
@@ -333,8 +308,7 @@ PopColor(lua_State *L) {
     return c;
 }
 
-void
-PushColor(lua_State *L, Color c) {
+void PushColor(lua_State *L, Color c) {
     lua_newtable(L);
     {
         lua_pushnumber(L, 1);
@@ -355,8 +329,7 @@ PushColor(lua_State *L, Color c) {
     }
 }
 
-ApiInterface
-PopApi(ApiData *api) {
+ApiInterface PopApi(ApiData *api) {
     ApiInterface data;
 
     lua_getglobal(api->lua, "lynx");
@@ -375,13 +348,9 @@ PopApi(ApiData *api) {
     return data;
 }
 
-int
-RegisterCallback(lua_State *L) {
-    return luaL_ref(L, LUA_REGISTRYINDEX);
-}
+int RegisterCallback(lua_State *L) { return luaL_ref(L, LUA_REGISTRYINDEX); }
 
-B8
-CallCallback_(lua_State *L, ApiCallback *callback, U32 args) {
+B8 CallCallback_(lua_State *L, ApiCallback *callback, U32 args) {
     lua_rawgeti(L, LUA_REGISTRYINDEX, *callback);
 
     lua_pushvalue(L, -1);
@@ -402,15 +371,13 @@ CallCallback_(lua_State *L, ApiCallback *callback, U32 args) {
     return true;
 }
 
-void
-FreeCallback(lua_State *L, ApiCallback *callback) {
+void FreeCallback(lua_State *L, ApiCallback *callback) {
     luaL_unref(L, LUA_REGISTRYINDEX, *callback);
 
     *callback = 0;
 }
 
-static int
-L_GetMusicTimePlayed(lua_State *L) {
+static int L_GetMusicTimePlayed(lua_State *L) {
     F32 time_played = p_state->condition == StateCondition_RECORDING
                           ? GetTime() - p_state->record_start
                           : GetMusicTimePlayed(p_state->music);
@@ -420,17 +387,26 @@ L_GetMusicTimePlayed(lua_State *L) {
     return 1;
 }
 
-static int
-L_AddParameter(lua_State *L) {
+/**
+ * Adds a given parameter
+ *
+ * @param name Name of parameter.
+ * @param value (float) Value of parameter.
+ * @param min (float) Minimum value of parameter.
+ * @param max (float) Maximum value of parameter.
+ *
+ * @return parameter.
+ */
+static int L_AddParameter(lua_State *L) {
     CheckArgument(L, LUA_TSTRING, 1, add_param);
     CheckArgument(L, LUA_TNUMBER, 2, add_param);
     CheckArgument(L, LUA_TNUMBER, 3, add_param);
     CheckArgument(L, LUA_TNUMBER, 4, add_param);
 
     const char *name = lua_tostring(L, 1);
-    F32         value = lua_tonumber(L, 2);
-    F32         min = lua_tonumber(L, 3);
-    F32         max = lua_tonumber(L, 4);
+    F32 value = lua_tonumber(L, 2);
+    F32 min = lua_tonumber(L, 3);
+    F32 max = lua_tonumber(L, 4);
 
     char *mem = ArenaPushString(&p_state->arena, name);
 
@@ -448,21 +424,32 @@ L_AddParameter(lua_State *L) {
     return 1;
 }
 
-static int
-L_SetParameter(lua_State *L) {
-    CheckArgument(L, LUA_TSTRING, 1, set_param);
-    CheckArgument(L, LUA_TNUMBER, 2, set_param);
+/**
+ * Sets the value of the given parameter.
+ *
+ * @param param Parameter to change.
+ * @param value New value.
+ */
+static int L_SetParameter(lua_State *L) {
+    CheckArgument(L, LUA_TLIGHTUSERDATA, 1, get_param);
 
-    const char *name = lua_tostring(L, 1);
-    F32         value = lua_tonumber(L, 2);
+    Parameter *param = lua_touserdata(L, 1);
 
-    ParameterSetValue(p_state->parameters, name, value);
+    F32 value = lua_tonumber(L, 2);
+
+    ParameterSetValue(p_state->parameters, param->name, value);
 
     return 0;
 }
 
-static int
-L_GetParameter(lua_State *L) {
+/**
+ * Gets the value of the given parameter.
+ *
+ * @param parameter Parameter to return value of.
+ *
+ * @returns value Parameter value.
+ */
+static int L_GetParameter(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, get_param);
 
     Parameter *param = lua_touserdata(L, 1);
@@ -472,8 +459,7 @@ L_GetParameter(lua_State *L) {
     return 1;
 }
 
-static int
-L_PreUpdate(lua_State *L) {
+static int L_PreUpdate(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, pre_update);
 
     p_state->api_data->pre_update[p_state->api_data->pre_update_count++] =
@@ -482,8 +468,7 @@ L_PreUpdate(lua_State *L) {
     return 0;
 }
 
-static int
-L_OnUpdate(lua_State *L) {
+static int L_OnUpdate(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, on_update);
 
     p_state->api_data->on_update[p_state->api_data->on_update_count++] =
@@ -492,8 +477,7 @@ L_OnUpdate(lua_State *L) {
     return 0;
 }
 
-static int
-L_OnRender(lua_State *L) {
+static int L_OnRender(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, on_render);
 
     p_state->api_data->on_render[p_state->api_data->on_render_count++] =
@@ -502,8 +486,7 @@ L_OnRender(lua_State *L) {
     return 0;
 }
 
-static int
-L_PreRender(lua_State *L) {
+static int L_PreRender(lua_State *L) {
     CheckArgument(L, LUA_TFUNCTION, 1, pre_render);
 
     p_state->api_data->pre_render[p_state->api_data->pre_render_count++] =
@@ -512,8 +495,7 @@ L_PreRender(lua_State *L) {
     return 0;
 }
 
-int
-L_SetBgColor(lua_State *L) {
+int L_SetBgColor(lua_State *L) {
     CheckArgument(L, LUA_TTABLE, 1, set_bg_color);
 
     p_state->api_data->data.opt.bg_color = PopColor(L);
@@ -521,15 +503,13 @@ L_SetBgColor(lua_State *L) {
     return 0;
 }
 
-int
-L_GetBgColor(lua_State *L) {
+int L_GetBgColor(lua_State *L) {
     PushColor(L, p_state->api_data->data.opt.bg_color);
 
     return 1;
 }
 
-static void
-PushArray(lua_State *L, F32 *array, U32 count) {
+static void PushArray(lua_State *L, F32 *array, U32 count) {
     lua_newtable(L);
     for (U32 i = 0; i < count; ++i) {
         lua_pushnumber(L, i + 1);
@@ -538,8 +518,7 @@ PushArray(lua_State *L, F32 *array, U32 count) {
     }
 }
 
-static void
-PopArray(lua_State *L, F32 *out, U32 count) {
+static void PopArray(lua_State *L, F32 *out, U32 count) {
     F32 array[count];
 
     for (U32 i = 0; i < count; ++i) {
@@ -551,15 +530,18 @@ PopArray(lua_State *L, F32 *out, U32 count) {
     memcpy(out, array, sizeof(F32) * count);
 }
 
-static int
-L_GetSamples(lua_State *L) {
+static int L_GetSamples(lua_State *L) {
     PushArray(L, p_state->samples, SAMPLE_COUNT);
 
     return 1;
 }
 
-static int
-L_SmoothSignal(lua_State *L) {
+static int L_GetSampleFrequencies(lua_State *L) {
+    PushArray(L, p_state->frequencies, p_state->frequency_count);
+    return 1;
+}
+
+static int L_SmoothSignal(lua_State *L) {
     CheckArgument(L, LUA_TTABLE, 1, smooth_signal);
 
     U32 length = luaL_len(L, 1);
@@ -581,23 +563,20 @@ L_SmoothSignal(lua_State *L) {
     return 1;
 }
 
-static int
-L_GetScreenSize(lua_State *L) {
+static int L_GetScreenSize(lua_State *L) {
     PushVec2(L, p_state->screen_size);
 
     return 1;
 }
 
-void
-ApiError(lua_State *L, const char *msg) {
+void ApiError(lua_State *L, const char *msg) {
     luaL_traceback(L, L, NULL, 1);
     printf("Error calling lua: %s\n%s\n", msg, lua_tostring(L, -1));
     lua_pop(L, 1);
     return;
 }
 
-static HMM_Vec2
-PopVec2(lua_State *L) {
+static HMM_Vec2 PopVec2(lua_State *L) {
     HMM_Vec2 out = {};
 
     if (!lua_istable(L, -1)) {
@@ -615,8 +594,7 @@ PopVec2(lua_State *L) {
     return out;
 }
 
-static void
-PushVec2(lua_State *L, HMM_Vec2 vec) {
+static void PushVec2(lua_State *L, HMM_Vec2 vec) {
     lua_newtable(L);
     {
         lua_pushstring(L, "x");
@@ -629,9 +607,14 @@ PushVec2(lua_State *L, HMM_Vec2 vec) {
     }
 }
 
-// TODO(satvik): Make this user-proof
-static int
-L_DrawLinedPoly(lua_State *L) {
+/**
+ * Draws a lined poly.
+ *
+ * @param vertices List of Vec2 vertices
+ * @param indices List of Vec2 indices
+ * @param color Color of the lined poly.
+ */
+static int L_DrawLinedPoly(lua_State *L) {
     U32 n = lua_gettop(L);
 
     assert(n == 3 || "lynx.api.draw_lined_poly requires 3 arguments");
@@ -685,8 +668,7 @@ L_DrawLinedPoly(lua_State *L) {
     return 0;
 }
 
-static int
-L_BindShader(lua_State *L) {
+static int L_BindShader(lua_State *L) {
     const char *fragment_shader;
     const char *vertex_shader;
 
@@ -743,8 +725,7 @@ L_BindShader(lua_State *L) {
     return 0;
 }
 
-static int
-L_UnbindShader(lua_State *L) {
+static int L_UnbindShader(lua_State *L) {
     (void)L;
 
     EndShaderMode();
@@ -752,14 +733,20 @@ L_UnbindShader(lua_State *L) {
     return 0;
 }
 
-static int
-L_DrawCenteredText(lua_State *L) {
+/**
+ * Draws centered text.
+ *
+ * @param text String of text to be rendered.
+ * @param position Vec2 of position.
+ * @param font_size Size of font in pt.
+ */
+static int L_DrawCenteredText(lua_State *L) {
     CheckArgument(L, LUA_TSTRING, 1, draw_centered_text);
     CheckArgument(L, LUA_TTABLE, 2, draw_centered_text);
     CheckArgument(L, LUA_TNUMBER, 3, draw_centered_text);
 
     const char *text = lua_tostring(L, 1);
-    U32         size = lua_tonumber(L, 3);
+    U32 size = lua_tonumber(L, 3);
 
     lua_pop(L, 1);
 
@@ -773,11 +760,10 @@ L_DrawCenteredText(lua_State *L) {
 
 typedef struct AnimationUpdateData {
     ApiCallback callback;
-    lua_State  *lua;
+    lua_State *lua;
 } AnimationUpdateData;
 
-static void
-ApiAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
+static void ApiAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     AnimationUpdateData *data = (AnimationUpdateData *)user_data;
 
     lua_pushlightuserdata(data->lua, anim);
@@ -786,8 +772,7 @@ ApiAnimationUpdate(_Animation *anim, void *user_data, F64 dt) {
     CallCallback(data->lua, &data->callback, 2);
 }
 
-static int
-L_AnimationGetElapsed(lua_State *L) {
+static int L_AnimationGetElapsed(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_get_elapsed);
 
     _Animation *anim = lua_touserdata(L, 1);
@@ -802,8 +787,7 @@ L_AnimationGetElapsed(lua_State *L) {
     return 1;
 }
 
-static int
-L_AnimationGetVal(lua_State *L) {
+static int L_AnimationGetVal(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_get_elapsed);
 
     _Animation *anim = lua_touserdata(L, 1);
@@ -818,13 +802,12 @@ L_AnimationGetVal(lua_State *L) {
     return 1;
 }
 
-static int
-L_AnimationSetVal(lua_State *L) {
+static int L_AnimationSetVal(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_set_val);
     CheckArgument(L, LUA_TNUMBER, 2, animation_set_val);
 
     _Animation *anim = lua_touserdata(L, 1);
-    F32         val = lua_tonumber(L, 2);
+    F32 val = lua_tonumber(L, 2);
 
     if (anim) {
         anim->val = val;
@@ -835,13 +818,12 @@ L_AnimationSetVal(lua_State *L) {
     return 0;
 }
 
-static int
-L_AnimationLoad(lua_State *L) {
+static int L_AnimationLoad(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_load);
     CheckArgument(L, LUA_TNUMBER, 2, animation_load);
 
     _Animation *anim = lua_touserdata(L, 1);
-    F32         def = lua_tonumber(L, 2);
+    F32 def = lua_tonumber(L, 2);
 
     if (AnimationsExists(p_state->animations, anim->name)) {
         lua_pushnumber(L, AnimationsLoad(p_state->animations, anim->name));
@@ -852,8 +834,7 @@ L_AnimationLoad(lua_State *L) {
     return 1;
 }
 
-static int
-L_AnimationSetFinished(lua_State *L) {
+static int L_AnimationSetFinished(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, animation_set_finished);
 
     _Animation *anim = lua_touserdata(L, 1);
@@ -867,8 +848,7 @@ L_AnimationSetFinished(lua_State *L) {
     return 0;
 }
 
-static int
-L_AddAnimation(lua_State *L) {
+static int L_AddAnimation(lua_State *L) {
     CheckArgument(L, LUA_TSTRING, 1, animations_add);
     CheckArgument(L, LUA_TFUNCTION, 2, animations_add);
 
@@ -893,18 +873,16 @@ L_AddAnimation(lua_State *L) {
 
 typedef struct ProcedureCallbackData {
     ApiCallback callback;
-    lua_State  *L;
+    lua_State *L;
 } ProcedureCallbackData;
 
-static void
-ProcedureCallbackWrapper(void *data) {
+static void ProcedureCallbackWrapper(void *data) {
     ProcedureCallbackData *callback_data = (ProcedureCallbackData *)data;
 
     CallCallback(callback_data->L, &callback_data->callback, 0);
 }
 
-static int
-L_AddProcedure(lua_State *L) {
+static int L_AddProcedure(lua_State *L) {
     CheckArgument(L, LUA_TSTRING, 1, add_procedure);
     CheckArgument(L, LUA_TFUNCTION, 2, add_procedure);
 
@@ -934,8 +912,7 @@ L_AddProcedure(lua_State *L) {
     return 1;
 }
 
-static int
-L_CallProcedure(lua_State *L) {
+static int L_CallProcedure(lua_State *L) {
     CheckArgument(L, LUA_TLIGHTUSERDATA, 1, call_procedure);
 
     const char *name = ((Procedure *)lua_touserdata(L, 1))->name;

@@ -362,11 +362,8 @@ void StateUpdate() {
 
         if (IsKeyPressed(KEY_M) && !IsKeyDown(KEY_LEFT_CONTROL) &&
             IsMusicReady(state->music)) {
-            if (_ParameterGetValue(state->def_params.master_volume) != 0.f) {
-                _ParameterSetValue(state->def_params.master_volume, 0.f);
-            } else {
-                _ParameterSetValue(state->def_params.master_volume, 100.f);
-            }
+
+            StateToggleMuted();
         }
 
         if (!IsMusicReady(state->music)) {
@@ -397,8 +394,7 @@ void StateUpdate() {
             state->frequencies, &state->frequency_count, state->dt,
             (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
             state->filter_count, _ParameterGetValue(state->def_params.velocity),
-            state->zero_frequencies);
-
+            false);
     } break;
 
     case StateCondition_LOOPBACK: {
@@ -410,6 +406,10 @@ void StateUpdate() {
             (U32)_ParameterGetValue(state->def_params.smoothing), state->filter,
             state->filter_count, _ParameterGetValue(state->def_params.velocity),
             state->zero_frequencies);
+
+        if (IsWindowResized()) {
+            state->screen_size = HMM_V2(GetRenderWidth(), GetRenderHeight());
+        }
     } break;
 
     case StateCondition_ERROR: {
@@ -460,7 +460,8 @@ void StateRender() {
     } break;
     case StateCondition_LOOPBACK:
     case StateCondition_NORMAL: {
-        if (!IsMusicReady(state->music)) {
+        if (!IsMusicReady(state->music) &&
+            state->condition == StateCondition_NORMAL) {
             state->condition = StateCondition_LOAD;
             break;
         }
@@ -513,9 +514,15 @@ void StateRender() {
 
     case StateCondition_LOAD: {
         RendererDrawTextCenter(
-            MediumFont(state->font), "Drag & drop music to play",
+            LargeFont(state->font), "Drag & drop music to play",
             HMM_V2(state->screen_size.Width / 2, state->screen_size.Height / 2),
             (Color){255, 255, 255, 255});
+        RendererDrawTextCenter(
+            MediumFont(state->font),
+            "Or press CMD+Shift+L to enter PASSTHROUGH mode.",
+            HMM_V2(state->screen_size.Width / 2,
+                   state->screen_size.Height / 2 + 30),
+            (Color){255, 255, 255, 255 - 50.f + 50 * sinf(GetTime() * 10)});
     } break;
 
     case StateCondition_RECORDING: {
@@ -783,6 +790,18 @@ static B8 GetDroppedFiles() {
 
 bool StateGetLoopback() { return state->condition == StateCondition_LOOPBACK; }
 
+void StateToggleMuted() {
+    if (_ParameterGetValue(state->def_params.master_volume) == 0.f) {
+        _ParameterSetValue(state->def_params.master_volume, 100.f);
+    } else {
+        _ParameterSetValue(state->def_params.master_volume, 0.f);
+    }
+}
+
+bool StateGetMuted() {
+    return _ParameterGetValue(state->def_params.master_volume) == 0.f;
+}
+
 void StateToggleProcedure(const char *proc_name) {
     ProcedureToggle(state->procedures, proc_name);
 }
@@ -793,16 +812,20 @@ B8 StateIterProcedures(U32 *iter, Procedure **procedure) {
 
 void StateToggleLoopback() {
     switch (state->condition) {
+    case StateCondition_LOAD:
     case StateCondition_NORMAL:
         // Change condition to loopback mode.
         PauseMusicStream(state->music);
         state->condition = StateCondition_LOOPBACK;
         break;
+
     case StateCondition_LOOPBACK:
         // Change condition to normal.
         ResumeMusicStream(state->music);
         state->condition = StateCondition_NORMAL;
+        StateSetZeroFrequencies(false);
         break;
+
     default:
         return;
         break;
