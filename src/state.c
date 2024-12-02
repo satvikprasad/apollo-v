@@ -203,6 +203,8 @@ void StateInitialise() {
 }
 
 void StateDestroy() {
+    LoopbackEnd();
+
     ServerWait(state->server_data);
 
     Serialize(state);

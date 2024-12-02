@@ -2,6 +2,7 @@
 #include "../state.h"
 
 #include <AVFAudio/AVFAudio.h>
+#include <AVFoundation/AVFoundation.h>
 #include <AVKit/AVKit.h>
 #include <CoreAudioTypes/CoreAudioTypes.h>
 #include <CoreFoundation/CoreFoundation.h>
@@ -13,6 +14,8 @@
 #include <ScreenCaptureKit/ScreenCaptureKit.h>
 #include <stdlib.h>
 #include <sys/types.h>
+
+SCStream *stream;
 
 @interface StreamOutput : NSObject <SCStreamOutput, SCStreamDelegate> {
 }
@@ -115,17 +118,28 @@ void StartAudioLoopback(SCShareableContent *_Nullable shareableContent) {
     [config setExcludesCurrentProcessAudio:true];
     [config setSampleRate:48000];
     [config setChannelCount:2];
-    [config setMinimumFrameInterval:CMTimeMake(1, 144)];
 
     StreamOutput *streamOutput = [[StreamOutput alloc] init];
 
-    SCStream *stream = [[SCStream alloc] initWithFilter:filter
-                                          configuration:config
-                                               delegate:streamOutput];
+    stream = [[SCStream alloc] initWithFilter:filter
+                                configuration:config
+                                     delegate:streamOutput];
 
     [stream addStreamOutput:streamOutput
                        type:SCStreamOutputTypeAudio
-         sampleHandlerQueue:dispatch_get_main_queue()
+         sampleHandlerQueue:dispatch_queue_create("apollo-v.audio.queue", nil)
+                      error:&error];
+
+    if (error) {
+        NSLog(@"Error occured: %@", error);
+    }
+
+    dispatch_queue_t videoQueue =
+        dispatch_queue_create("apollo-v.video.queue", nil);
+
+    [stream addStreamOutput:streamOutput
+                       type:SCStreamOutputTypeScreen
+         sampleHandlerQueue:videoQueue
                       error:&error];
 
     if (error) {
@@ -172,4 +186,12 @@ void LoopbackBegin() {
 
                                    StartAudioLoopback(shareableContent);
                                  }];
+}
+
+void LoopbackEnd() {
+    [stream stopCaptureWithCompletionHandler:^(NSError *_Nullable error) {
+      if (error) {
+          NSLog(@"Error occured: %@", error);
+      }
+    }];
 }
