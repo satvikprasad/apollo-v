@@ -5,17 +5,17 @@ ifeq ($(OS), Windows_NT)
 	LDFLAGS=lib\raylib\src\libraylib.a lib\curl-8.5.0\lib\libcurl.a lib\lua-5.4.6\src\liblua.a 
 	LDFLAGS+=-lgdi32 -lole32 -loleaut32 -limm32 -lwinmm -L.\build\
 	SRC=$(patsubst %_unix.c, , $(wildcard src/*.c))
-	OUT=build\lynx.exe
+	OUT=build\apollo.exe
 	OS=Windows
 	COPY=xcopy /E
 	MKDIR=mkdir
 else 
-	CFLAGS=-Ilib/raylib/src -Ilib/lua-5.4.6/src -Ilib/miniaudio/ -Ilib/jsmn -Ilib/curl-8.5.0/include -Ilib/portaudio/include/
-	LDFLAGS=-lraylib -llua -L./lib/raylib/src/ -L./lib/lua-5.4.6/src -lportaudio
+	CFLAGS=-Ilib/raylib/src -Ilib/lua-5.4.6/src -Ilib/miniaudio/ -Ilib/jsmn -Ilib/curl-8.5.0/include 
+	LDFLAGS=-lraylib -llua -L./lib/raylib/src/ -L./lib/lua-5.4.6/src
 	LDFLAGS+=-framework CoreVideo -framework IOKit -framework Cocoa -framework GLUT -framework OpenGL -framework AppKit -framework UniformTypeIdentifiers -framework ScreenCaptureKit -framework CoreMedia -framework AVKit -framework AVFAudio -framework AVFoundation -lcurl -L./build/
 	SRC=$(patsubst %_win32.c, , $(wildcard src/*.c))
 	SRC+=$(wildcard src/macos/*.m)
-	OUT=build/lynx
+	OUT=build/apollo
 	OS=Unix
 	COPY=cp -r
 	MKDIR=mkdir -p
@@ -28,7 +28,7 @@ build: $(SRC)
 
 run: build assets
 	cp ./lua/init.lua ~/.config/apollo/init.lua
-	@./build/lynx
+	@./build/apollo
 
 clean: 
 	@rm -rf build

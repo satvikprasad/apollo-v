@@ -8,8 +8,6 @@
 
 #define SUPPORT_FILEFORMAT_FLAC
 
-void *libstate;
-
 I32 main(void) {
     SetConfigFlags(FLAG_MSAA_4X_HINT);
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
